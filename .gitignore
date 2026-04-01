@@ -1,0 +1,84 @@
+# -------------  通用 -------------
+# 机密（API Key, 密码等）
+.env
+.env.*.local
+*.key
+*.pem
+
+# 依赖 / 构建产物
+node_modules/
+dist/
+dist-ssr/
+coverage/
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.sqlite3
+*.log
+logs
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+lerna-debug.log*
+*.local
+
+# 编辑器/IDE
+.vscode/
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# 系统文件
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Vite/Vitest/Cypress
+*.timestamp-*-*.mjs
+__screenshots__/
+cypress/videos/
+cypress/screenshots/
+.eslintcache
+*.tsbuildinfo
+
+# ------------- 业务数据 -------------
+# 后端大数据目录根据你需要排除
+backend/data/
+backend/data/maxent_results/
+backend/data/maxent_results/*.asc
+
+# ------------- 你提供的已存在规则整合 -------------
+# 兼容你现有 frontend/.gitignore 中内容
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+node_modules
+.DS_Store
+dist
+dist-ssr
+coverage
+*.local
+.vscode/*
+!.vscode/extensions.json
+.idea
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+*.tsbuildinfo
+.eslintcache
+/cypress/videos/
+/cypress/screenshots/
+__screenshots__/
+*.timestamp-*-*.mjs
