@@ -89,16 +89,16 @@
             </div>
 
             <div class="input-area">
-              <div v-if="chatSpecies && suggestions.length > 0" class="suggestions">
+              <div v-if="chatSpecies && randomQuestions.length > 0" class="suggestions">
                 <span class="suggest-label">💡 关于 <strong>{{ chatSpecies }}</strong>，试试：</span>
                 <div class="suggestion-buttons">
                   <button 
-                    v-for="(sugg, idx) in suggestions.slice(0, 2)" 
+                    v-for="(q, idx) in randomQuestions" 
                     :key="idx"
-                    @click="askQuestion(sugg)"
+                    @click="askQuestion(q)"
                     class="sugg-btn"
                   >
-                    {{ sugg }}
+                    {{ q }}
                   </button>
                 </div>
               </div>
@@ -139,7 +139,6 @@
           <div class="report-section">
             <h3>📝 新增物种分布记录</h3>
             <p class="guide-text">支持两种方式：在地图上选点或填写表单。确认无误后点击保存。</p>
-            
             <div class="form-area">
               <div class="form-group">
                 <label>物种名称 *</label>
@@ -149,34 +148,40 @@
                 </select>
               </div>
 
+              <div class="form-row">
+                <button @click="forwardGeocode" class="small-btn">详细地名转经纬</button>
+                <button @click="reverseGeocode" class="small-btn">经纬转详细地名</button>
+              </div>
+              <p class="small-text">地图点选会自动填入三框。</p>
+
               <div class="form-group">
-                <label>位置名称 *</label>
-                <input v-model="reportForm.location_name" class="form-input" placeholder="例：太湖、长江主干道"/>
+                <label>详细地名 *</label>
+                <input v-model="reportForm.location_name" class="form-input" placeholder="例：江苏省南京市玄武区XXX"/>
               </div>
 
               <div class="coords-row">
                 <div class="form-group">
-                  <label>纬度 *</label>
-                  <input 
-                    v-model.number="reportForm.latitude" 
-                    type="number" 
-                    class="form-input" 
-                    placeholder="纬度"
-                    step="0.0001"
-                    min="-90"
-                    max="90"
-                  />
-                </div>
-                <div class="form-group">
-                  <label>经度 *</label>
+                  <label>经度 (Longitude) *</label>
                   <input 
                     v-model.number="reportForm.longitude" 
                     type="number" 
                     class="form-input" 
                     placeholder="经度"
-                    step="0.0001"
+                    step="0.000001"
                     min="-180"
                     max="180"
+                  />
+                </div>
+                <div class="form-group">
+                  <label>纬度 (Latitude) *</label>
+                  <input 
+                    v-model.number="reportForm.latitude" 
+                    type="number" 
+                    class="form-input" 
+                    placeholder="纬度"
+                    step="0.000001"
+                    min="-90"
+                    max="90"
                   />
                 </div>
               </div>
@@ -199,33 +204,46 @@
                 {{ reportMessage }}
               </div>
             </div>
+
+            <div class="collected-data">
+              <h3>📊 已收集的记录</h3>
+              <div v-if="allRecords.length > 0" class="records-table">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>物种</th>
+                      <th>位置</th>
+                      <th>坐标</th>
+                      <th>日期</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="(record, idx) in allRecords" :key="idx">
+                      <td>{{ record.species }}</td>
+                      <td>{{ record.location_name }}</td>
+                      <td>{{ record.latitude.toFixed(4) }}, {{ record.longitude.toFixed(4) }}</td>
+                      <td>{{ record.date }}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <div v-else class="empty-state">
+                暂无记录数据
+              </div>
+            </div>
           </div>
 
-          <div class="collected-data">
-            <h3>📊 已收集的记录</h3>
-            <div v-if="allRecords.length > 0" class="records-table">
-              <table>
-                <thead>
-                  <tr>
-                    <th>物种</th>
-                    <th>位置</th>
-                    <th>坐标</th>
-                    <th>日期</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr v-for="(record, idx) in allRecords" :key="idx">
-                    <td>{{ record.species }}</td>
-                    <td>{{ record.location_name }}</td>
-                    <td>{{ record.latitude.toFixed(4) }}, {{ record.longitude.toFixed(4) }}</td>
-                    <td>{{ record.date }}</td>
-                  </tr>
-                </tbody>
-              </table>
+          <div class="map-and-records">
+            <div class="report-basemap-wrapper" style="margin-bottom: 10px;">
+              <label style="font-weight: 500; color: #333; margin-right: 8px;">地图底图：</label>
+              <select v-model="reportBasemap" @change="changeReportBasemap" class="form-input" style="width: auto; display: inline-block; padding: 6px 12px;">
+                <option value="osm">OpenStreetMap</option>
+                <option value="esri">ESRI 卫星影像</option>
+                <option value="gaode_satellite">高德纯卫星影像</option>
+                <option value="gaode_satellite_annotated">高德卫星影像 (带标注)</option>
+              </select>
             </div>
-            <div v-else class="empty-state">
-              暂无记录数据
-            </div>
+            <div id="report-map" class="report-map-container"></div>
           </div>
         </div>
       </div>
@@ -269,7 +287,11 @@ const chatMessages = ref([
 let msgId = 1
 const userInput = ref('')
 const chatSpecies = ref('')
-const suggestions = ref([])
+const allSuggestions = ref([])  // 后端返回的所有建议
+const randomQuestions = ref([])  // 当前显示的 2 个随机问题
+const lastSuggestedLabels = ref([])  // 上次推荐过的问题标签
+const lastMsgCountForRefresh = ref(-1)  // 上次刷新时的消息数
+const lastSpeciesForRefresh = ref('')  // 上次刷新时的物种
 
 // =============== Tab 3: 数据上报 ===============
 const reportForm = ref({
@@ -282,6 +304,10 @@ const reportForm = ref({
 const reportMessage = ref('')
 const reportMessageType = ref('success')
 const allRecords = ref([])
+let reportMap = null
+let reportMapMarker = null
+let reportTileLayer = null  // Tab3的底图图层
+const reportBasemap = ref('osm')  // Tab3的底图选择
 
 const tabs = ref([
   { label: '🌍 分布识别分析', icon: '🌍' },
@@ -306,6 +332,9 @@ watch(() => activeTab.value, (newTab) => {
   if (newTab === 0 && !map) {
     // 延迟初始化以确保 DOM 已渲染
     setTimeout(initMap, 100)
+  }
+  if (newTab === 2 && !reportMap) {
+    setTimeout(initReportMap, 100)
   }
 })
 
@@ -373,10 +402,10 @@ const changeBasemap = () => {
 
 const changeLayer = async () => {
   // 移除现有图层
-  if (markersLayer) map.removeLayer(markersLayer)
-  if (heatLayer) map.removeLayer(heatLayer)
-  if (provinceLayer) map.removeLayer(provinceLayer)
-  if (maxentLayer) map.removeLayer(maxentLayer)
+  if (markersLayer && map.hasLayer(markersLayer)) map.removeLayer(markersLayer)
+  if (heatLayer && map.hasLayer(heatLayer)) map.removeLayer(heatLayer)
+  if (provinceLayer && map.hasLayer(provinceLayer)) map.removeLayer(provinceLayer)
+  if (maxentLayer && map.hasLayer(maxentLayer)) map.removeLayer(maxentLayer)
 
   if (selectedLayer.value === 'points') {
     markersLayer = L.layerGroup().addTo(map)
@@ -412,7 +441,13 @@ const loadHeatmapData = async () => {
     const response = await fetch(`${API_BASE}/heatmap/${encodeURIComponent(selectedSpecies.value || 'all')}`)
     const data = await response.json()
     const points = data.points || []
+    if (points.length === 0) {
+      console.warn('热力图数据为空')
+      return
+    }
     heatLayer = L.heatLayer(points, { radius: 25 }).addTo(map)
+    const latLngs = points.map((p) => [p[0], p[1]])
+    map.fitBounds(L.latLngBounds(latLngs))
   } catch (error) {
     console.error('加载热力图数据失败:', error)
   }
@@ -436,6 +471,9 @@ const loadProvinceData = async () => {
         layer.bindPopup(`${feature.properties.name}: ${feature.properties.count} 记录`)
       }
     }).addTo(map)
+    if (provinceLayer && provinceLayer.getBounds && provinceLayer.getBounds().isValid()) {
+      map.fitBounds(provinceLayer.getBounds())
+    }
   } catch (error) {
     console.error('加载省级数据失败:', error)
   }
@@ -445,11 +483,108 @@ const loadMaxentData = async () => {
   try {
     const response = await fetch(`${API_BASE}/maxent-image/${encodeURIComponent(selectedSpecies.value)}`)
     const data = await response.json()
-    const imageUrl = data.imageUrl
-    const bounds = data.bounds // [[lat1, lng1], [lat2, lng2]]
-    maxentLayer = L.imageOverlay(imageUrl, bounds, { opacity: 0.6 }).addTo(map)
+    if (!data.imageUrl || !data.bounds) {
+      console.warn('未返回有效的 MaxEnt 图像数据', data)
+      return
+    }
+    maxentLayer = L.imageOverlay(data.imageUrl, data.bounds, { opacity: 0.6 }).addTo(map)
+    if (maxentLayer && data.bounds) {
+      map.fitBounds(data.bounds)
+    }
   } catch (error) {
     console.error('加载MaxEnt数据失败:', error)
+  }
+}
+
+const initReportMap = () => {
+  if (reportMap) return
+  reportMap = L.map('report-map').setView([31.2304, 121.4737], 5)
+
+  changeReportBasemap()
+
+  reportMap.on('click', async (e) => {
+    const { lat, lng } = e.latlng
+    reportForm.value.latitude = parseFloat(lat.toFixed(6))
+    reportForm.value.longitude = parseFloat(lng.toFixed(6))
+    reportForm.value.location_name = `经纬度：${reportForm.value.longitude}, ${reportForm.value.latitude}`
+    setReportMarker(reportForm.value.latitude, reportForm.value.longitude)
+
+    try {
+      const r = await fetch(`${API_BASE}/reverse-geocode?lat=${reportForm.value.latitude}&lon=${reportForm.value.longitude}`)
+      const json = await r.json()
+      if (json.address) {
+        reportForm.value.location_name = json.address
+      }
+    } catch (err) {
+      console.error('逆向地理编码失败', err)
+      // 保持经纬度显示，可视为无地址情况
+      reportForm.value.location_name = `经纬度：${reportForm.value.longitude}, ${reportForm.value.latitude}`
+    }
+  })
+}
+
+const changeReportBasemap = () => {
+  if (reportTileLayer) {
+    reportMap.removeLayer(reportTileLayer)
+  }
+  if (reportBasemap.value === 'osm') {
+    reportTileLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© OpenStreetMap contributors',
+      maxZoom: 18
+    }).addTo(reportMap)
+  } else if (reportBasemap.value === 'esri') {
+    reportTileLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+      attribution: 'Tiles &copy; Esri',
+      maxZoom: 18
+    }).addTo(reportMap)
+  } else if (reportBasemap.value === 'gaode_satellite') {
+    reportTileLayer = L.tileLayer('https://webst02.is.autonavi.com/appmaptile?style=6&x={x}&y={y}&z={z}', {
+      attribution: 'Tiles &copy; 高德地图 AMap',
+      maxZoom: 18
+    }).addTo(reportMap)
+  } else if (reportBasemap.value === 'gaode_satellite_annotated') {
+    reportTileLayer = L.tileLayer('https://webst02.is.autonavi.com/appmaptile?style=8&x={x}&y={y}&z={z}', {
+      attribution: 'Tiles &copy; 高德地图 AMap',
+      maxZoom: 18
+    }).addTo(reportMap)
+  }
+}
+
+const setReportMarker = (lat, lng) => {
+  if (!reportMap) return
+  if (reportMapMarker) {
+    reportMap.removeLayer(reportMapMarker)
+  }
+  reportMapMarker = L.marker([lat, lng]).addTo(reportMap)
+  reportMap.setView([lat, lng], 10)
+}
+
+const forwardGeocode = async () => {
+  if (!reportForm.value.location_name || !reportForm.value.location_name.trim()) return
+  try {
+    const response = await fetch(`${API_BASE}/geocode?address=${encodeURIComponent(reportForm.value.location_name)}`)
+    const data = await response.json()
+    if (data.lat && data.lon) {
+      reportForm.value.latitude = data.lat
+      reportForm.value.longitude = data.lon
+      reportForm.value.location_name = data.display_name || reportForm.value.location_name
+      setReportMarker(data.lat, data.lon)
+    }
+  } catch (error) {
+    console.error('详细地名转经纬失败:', error)
+  }
+}
+
+const reverseGeocode = async () => {
+  if (reportForm.value.latitude == null || reportForm.value.longitude == null) return
+  try {
+    const response = await fetch(`${API_BASE}/reverse-geocode?lat=${reportForm.value.latitude}&lon=${reportForm.value.longitude}`)
+    const data = await response.json()
+    if (data.address) {
+      reportForm.value.location_name = data.address
+    }
+  } catch (error) {
+    console.error('逆向地理编码失败:', error)
   }
 }
 
@@ -481,20 +616,36 @@ const onSpeciesChange = async () => {
 }
 
 // =============== Tab 2: 知识问答 ===============
-const selectChatSpecies = async (species) => {
-  chatSpecies.value = species
-  await loadSuggestions(species)
-}
-
 const loadSuggestions = async (species) => {
   try {
     const response = await fetch(`${API_BASE}/qa/suggestions/${encodeURIComponent(species)}`)
     const data = await response.json()
-    suggestions.value = data.suggestions || []
+    allSuggestions.value = data.suggestions || []
   } catch (error) {
     console.error('加载建议失败:', error)
-    suggestions.value = []
+    allSuggestions.value = []
   }
+}
+
+const refreshRandomQuestions = () => {
+  if (allSuggestions.value.length === 0) return
+  
+  // 过滤掉上次推荐过的问题
+  const availablePool = allSuggestions.value.filter(q => !lastSuggestedLabels.value.includes(q))
+  // 如果过滤后不足 2 个，就用全量池
+  const finalPool = availablePool.length >= 2 ? availablePool : allSuggestions.value
+  
+  // 从池中随机选 2 个
+  const shuffled = [...finalPool].sort(() => Math.random() - 0.5)
+  randomQuestions.value = shuffled.slice(0, 2)
+  lastSuggestedLabels.value = [...randomQuestions.value]
+}
+
+const selectChatSpecies = async (species) => {
+  chatSpecies.value = species
+  lastSpeciesForRefresh.value = species
+  await loadSuggestions(species)
+  refreshRandomQuestions()
 }
 
 const sendMessage = () => {
@@ -536,6 +687,15 @@ const askQuestion = async (question) => {
     })
   } finally {
     isLoading.value = false
+    
+    // 消息完成后，刷新建议问题（保证多样性）
+    const currentMsgCount = chatMessages.value.length
+    if (currentMsgCount !== lastMsgCountForRefresh.value || lastSpeciesForRefresh.value !== chatSpecies.value) {
+      lastMsgCountForRefresh.value = currentMsgCount
+      if (chatSpecies.value && allSuggestions.value.length > 0) {
+        refreshRandomQuestions()
+      }
+    }
   }
 }
 
@@ -563,6 +723,9 @@ const saveLocation = async () => {
     if (data.status === 'success') {
       reportMessage.value = '✅ 记录保存成功！感谢您的贡献'
       reportMessageType.value = 'success'
+      if (reportForm.value.latitude !== null && reportForm.value.longitude !== null) {
+        setReportMarker(reportForm.value.latitude, reportForm.value.longitude)
+      }
       resetForm()
       await loadAllRecords()
       
@@ -1002,9 +1165,12 @@ const resetForm = () => {
 /* ============ Tab 3: 数据上报 ============ */
 .report-container {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 0.85fr 1.15fr;
   gap: 20px;
   padding: 20px;
+  min-height: 00px;
+  align-items: stretch;
+  height: calc(100vh - 380px);
 }
 
 .report-section {
@@ -1029,6 +1195,52 @@ const resetForm = () => {
   display: flex;
   flex-direction: column;
   gap: 15px;
+}
+
+.geo-tools {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.form-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.small-btn {
+  padding: 8px 12px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  background: #fff;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.small-btn:hover {
+  background: #f0f0f0;
+}
+
+.small-text {
+  color: #666;
+  font-size: 0.9em;
+}
+
+.map-and-records {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  height: 100%;
+}
+
+.report-map-container {
+  width: 100%;
+  height: 100%;
+  flex: 1 1 auto;
+  border: 1px solid #ddd;
+  border-radius: 8px;
 }
 
 .form-group {

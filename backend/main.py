@@ -2,11 +2,16 @@
 =======
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from graph_chain import get_chain
 import pandas as pd
 import csv
 import os
+import requests
+import numpy as np
+import rasterio
+import matplotlib.pyplot as plt
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
@@ -36,6 +41,9 @@ app.add_middleware(
 # 数据目录配置
 DATA_DIR = "data"
 LOCATIONS_RECORD_FILE = os.path.join(DATA_DIR, "locations_record.csv")
+
+# 静态目录，供 MaxEnt 预测PNG等文件访问
+app.mount("/static", StaticFiles(directory=DATA_DIR), name="static")
 
 @app.get("/")
 def read_root():
@@ -132,7 +140,116 @@ def get_distribution_by_province(species: str):
         print(f"Get distribution error: {e}")
         return {"distribution": {}, "total": 0, "error": str(e)}
 
-# ========== 知识问答 API ==========
+# ========== 图层与空间分析 API ==========
+
+def _load_china_geojson():
+    url = "https://geo.datav.aliyun.com/areas_v3/bound/100000_full.json"
+    try:
+        res = requests.get(url, timeout=15)
+        res.raise_for_status()
+        return res.json()
+    except Exception as e:
+        print(f"加载中国省界 GeoJSON 失败: {e}")
+        return None
+
+china_geojson = _load_china_geojson()
+
+@app.get("/api/heatmap/{species}")
+def get_heatmap(species: str):
+    all_locs = get_locations(species).get("locations", [])
+    points = []
+    for loc in all_locs:
+        lat = loc.get("latitude")
+        lon = loc.get("longitude")
+        if lat is not None and lon is not None:
+            points.append([lat, lon, 0.5])
+    return {"points": points}
+
+@app.get("/api/province-data/{species}")
+def get_province_data(species: str):
+    if not china_geojson:
+        raise HTTPException(status_code=500, detail="中国省界 GeoJSON 尚未加载")
+    dist = get_distribution_by_province(species).get("distribution", {})
+    features = []
+    for feat in china_geojson.get("features", []):
+        props = dict(feat.get("properties", {}))
+        province_name = props.get("name") or props.get("NAME") or props.get("fullname")
+        count = dist.get(province_name, 0)
+        new_feat = {
+            "type": "Feature",
+            "geometry": feat.get("geometry"),
+            "properties": {
+                **props,
+                "count": count,
+                "name": province_name
+            }
+        }
+        features.append(new_feat)
+    return {"geojson": {"type": "FeatureCollection", "features": features}}
+
+@app.get("/api/maxent-image/{species}")
+def get_maxent_image(species: str):
+    tif_path = os.path.join(DATA_DIR, "maxent_results", f"{species}.tif")
+    png_path = os.path.join(DATA_DIR, "maxent_results", f"{species}.png")
+    if not os.path.exists(tif_path):
+        return {"error": "未找到 MaxEnt 结果文件", "imageUrl": "", "bounds": []}
+    try:
+        with rasterio.open(tif_path) as src:
+            bounds = [[src.bounds.bottom, src.bounds.left], [src.bounds.top, src.bounds.right]]
+            arr = src.read(1, masked=True).astype(np.float32)
+            arr = np.ma.filled(arr, np.nan)
+            vmin = np.nanmin(arr)
+            vmax = np.nanmax(arr)
+            if not (np.isfinite(vmin) and np.isfinite(vmax)) or vmin == vmax:
+                norm = np.zeros_like(arr)
+            else:
+                norm = (arr - vmin) / (vmax - vmin)
+            cmap = plt.get_cmap("YlOrRd")
+            rgba = cmap(norm)
+            rgba[..., 3] = np.where(np.isnan(arr), 0, 0.65)
+            Path(os.path.dirname(png_path)).mkdir(parents=True, exist_ok=True)
+            plt.imsave(png_path, rgba)
+        return {
+            "imageUrl": f"/static/maxent_results/{species}.png",
+            "bounds": bounds
+        }
+    except Exception as e:
+        print(f"生成MaxEnt图像失败: {e}")
+        return {"error": str(e), "imageUrl": "", "bounds": []}
+
+@app.get("/api/geocode")
+def geocode(address: str):
+    try:
+        url = "https://nominatim.openstreetmap.org/search"
+        params = {"q": address, "format": "json", "limit": 1}
+        r = requests.get(url, params=params, headers={"User-Agent": "aquatic-species-platform"}, timeout=15)
+        r.raise_for_status()
+        arr = r.json()
+        if not arr:
+            raise HTTPException(status_code=404, detail="无法找到地址")
+        first = arr[0]
+        return {
+            "lat": float(first["lat"]),
+            "lon": float(first["lon"]),
+            "display_name": first.get("display_name", "")
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"地理编码失败: {e}")
+
+@app.get("/api/reverse-geocode")
+def reverse_geocode(lat: float, lon: float):
+    try:
+        url = "https://nominatim.openstreetmap.org/reverse"
+        params = {"lat": lat, "lon": lon, "format": "json"}
+        r = requests.get(url, params=params, headers={"User-Agent": "aquatic-species-platform"}, timeout=15)
+        r.raise_for_status()
+        data = r.json()
+        return {"address": data.get("display_name", "")}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"逆向地理编码失败: {e}")
+
 # ========== 知识问答 API ==========
 @app.post("/api/qa")
 def qa_question(request: QuestionRequest):
