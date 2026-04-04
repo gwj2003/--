@@ -14,7 +14,7 @@ import rasterio
 import matplotlib.pyplot as plt
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 from functools import lru_cache  # 新增：用于内存缓存
 import time
 
@@ -24,8 +24,8 @@ class QuestionRequest(BaseModel):
 
 class LocationRecord(BaseModel):
     species: str
-    latitude: float = Field(..., gt=-90, lt=90)
-    longitude: float = Field(..., gt=-180, lt=180)
+    latitude: float = Field(..., ge=-90, le=90)
+    longitude: float = Field(..., ge=-180, le=180)
     location_name: str
     date: Optional[str] = None
 
@@ -43,6 +43,26 @@ app.add_middleware(
 # 数据目录配置
 DATA_DIR = "data"
 LOCATIONS_RECORD_FILE = os.path.join(DATA_DIR, "locations_record.csv")
+
+
+def _resolved_path_under_data_subdir(subdir: str, species: str, ext: str) -> Optional[Path]:
+    """将物种名解析为 data/<subdir> 下的安全路径，禁止目录穿越。"""
+    if not species or not str(species).strip():
+        return None
+    s = str(species).strip()
+    if any(c in s for c in ("/", "\\", "\x00")):
+        return None
+    if ".." in s or ":" in s:
+        return None
+    root = Path(DATA_DIR).resolve()
+    base = (root / subdir).resolve()
+    candidate = (base / f"{s}{ext}").resolve()
+    try:
+        candidate.relative_to(base)
+    except ValueError:
+        return None
+    return candidate
+
 
 # 静态目录，供 MaxEnt 预测PNG等文件访问
 app.mount("/static", StaticFiles(directory=DATA_DIR), name="static")
@@ -85,70 +105,48 @@ def load_species_data(file_path: str):
         return pd.read_csv(file_path)
     return None
 
+
+def _get_locations_list(species: str) -> list:
+    """读取 GBIF CSV 为点位列表；物种标识不合法时抛出 HTTPException。"""
+    gbif_path = _resolved_path_under_data_subdir("gbif_results", species, ".csv")
+    if gbif_path is None:
+        raise HTTPException(status_code=400, detail="无效的物种标识")
+    locations = []
+    df = load_species_data(str(gbif_path))
+    if df is not None:
+        try:
+            lat_cols = ['decimalLatitude', 'latitude', 'lat']
+            lon_cols = ['decimalLongitude', 'longitude', 'lon', 'lng']
+            lat_col = next((col for col in lat_cols if col in df.columns), None)
+            lon_col = next((col for col in lon_cols if col in df.columns), None)
+            if lat_col and lon_col:
+                for _, row in df.iterrows():
+                    try:
+                        lat = float(row[lat_col])
+                        lon = float(row[lon_col])
+                        if -90 <= lat <= 90 and -180 <= lon <= 180:
+                            locations.append({
+                                "latitude": lat,
+                                "longitude": lon,
+                                "location_name": str(row.get('locality', row.get('location', 'Unknown')))[:100]
+                            })
+                    except (ValueError, TypeError):
+                        continue
+        except Exception as e:
+            print(f"Error parsing dataframe: {e}")
+    return locations
+
+
 @app.get("/api/locations/{species}")
 def get_locations(species: str):
     """获取物种分布位置（使用 LRU Cache 优化 I/O）"""
     try:
-        gbif_file = os.path.join(DATA_DIR, "gbif_results", f"{species}.csv")
-        locations = []
-        
-        # 使用缓存读取数据，避免每次都读硬盘
-        df = load_species_data(gbif_file)
-        
-        if df is not None:
-            try:
-                # 处理不同的列名变体
-                lat_cols = ['decimalLatitude', 'latitude', 'lat']
-                lon_cols = ['decimalLongitude', 'longitude', 'lon', 'lng']
-                
-                lat_col = next((col for col in lat_cols if col in df.columns), None)
-                lon_col = next((col for col in lon_cols if col in df.columns), None)
-                
-                if lat_col and lon_col:
-                    for _, row in df.iterrows():
-                        try:
-                            lat = float(row[lat_col])
-                            lon = float(row[lon_col])
-                            if -90 <= lat <= 90 and -180 <= lon <= 180:
-                                locations.append({
-                                    "latitude": lat,
-                                    "longitude": lon,
-                                    "location_name": str(row.get('locality', row.get('location', 'Unknown')))[:100]
-                                })
-                        except (ValueError, TypeError):
-                            continue
-            except Exception as e:
-                print(f"Error parsing dataframe: {e}")
-        
-        # 限制返回数量
-        return {"locations": locations[:1000]}
+        return {"locations": _get_locations_list(species)[:1000]}
+    except HTTPException:
+        raise
     except Exception as e:
         print(f"Get locations error: {e}")
         return {"locations": [], "error": str(e)}
-
-@app.get("/api/distribution/{species}")
-def get_distribution_by_province(species: str):
-    """按地区统计分布"""
-    try:
-        locations_response = get_locations(species)
-        locations = locations_response.get("locations", [])
-        
-        province_count = {}
-        for loc in locations:
-            location_name = loc.get("location_name", "")
-            if location_name:
-                # 提取第一个以逗号分隔的部分作为地区
-                province = location_name.split(",")[0].strip()
-                if province:
-                    province_count[province] = province_count.get(province, 0) + 1
-        
-        return {
-            "distribution": province_count,
-            "total": sum(province_count.values())
-        }
-    except Exception as e:
-        print(f"Get distribution error: {e}")
-        return {"distribution": {}, "total": 0, "error": str(e)}
 
 # ========== 图层与空间分析 API ==========
 
@@ -166,7 +164,10 @@ china_geojson = _load_china_geojson()
 
 @app.get("/api/heatmap/{species}")
 def get_heatmap(species: str):
-    all_locs = get_locations(species).get("locations", [])
+    try:
+        all_locs = _get_locations_list(species)
+    except HTTPException:
+        raise
     points = []
     for loc in all_locs:
         lat = loc.get("latitude")
@@ -184,12 +185,47 @@ def get_china_gdf():
         china_gdf.set_crs(epsg=4326, inplace=True)
     return china_gdf
 
+
+_china_land_union: Any = None  # 惰性缓存几何体；_CHINA_UNION_MISS 表示国界不可用
+_CHINA_UNION_MISS = object()
+
+
+def _get_china_land_union():
+    """中国陆域（各省多边形合并），与省级填色图同源 GeoJSON，用于上报坐标是否在境内判定。"""
+    global _china_land_union
+    if _china_land_union is _CHINA_UNION_MISS:
+        return None
+    if _china_land_union is not None:
+        return _china_land_union
+    gdf = get_china_gdf()
+    if gdf is None or gdf.empty:
+        _china_land_union = _CHINA_UNION_MISS
+        return None
+    try:
+        _china_land_union = gdf.geometry.union_all()
+    except AttributeError:
+        from shapely.ops import unary_union
+        _china_land_union = unary_union(gdf.geometry.values)
+    return _china_land_union
+
+
+def _coord_is_inside_china(lon: float, lat: float) -> Optional[bool]:
+    """若国界数据可用则 True/False；无法加载国界时返回 None。"""
+    poly = _get_china_land_union()
+    if poly is None:
+        return None
+    return bool(poly.covers(Point(lon, lat)))
+
+
 @app.get("/api/province-data/{species}")
 def get_province_data(species: str):
     if not china_geojson:
         raise HTTPException(status_code=500, detail="中国省界 GeoJSON 尚未加载")
         
-    locations = get_locations(species).get("locations", [])
+    try:
+        locations = _get_locations_list(species)
+    except HTTPException:
+        raise
     
     # ==== 核心修复：基于经纬度的空间位置精确判定 ====
     dist = {}
@@ -233,9 +269,11 @@ def get_province_data(species: str):
 
 @app.get("/api/maxent-image/{species}")
 def get_maxent_image(species: str):
-    tif_path = os.path.join(DATA_DIR, "maxent_results", f"{species}.tif")
-    png_path = os.path.join(DATA_DIR, "maxent_results", f"{species}.png")
-    if not os.path.exists(tif_path):
+    tif_path = _resolved_path_under_data_subdir("maxent_results", species, ".tif")
+    if tif_path is None:
+        return {"error": "无效的物种标识", "imageUrl": "", "bounds": []}
+    png_path = tif_path.with_suffix(".png")
+    if not tif_path.is_file():
         return {"error": "未找到 MaxEnt 结果文件", "imageUrl": "", "bounds": []}
     try:
         with rasterio.open(tif_path) as src:
@@ -251,10 +289,10 @@ def get_maxent_image(species: str):
             cmap = plt.get_cmap("YlOrRd")
             rgba = cmap(norm)
             rgba[..., 3] = np.where(np.isnan(arr), 0, 0.65)
-            Path(os.path.dirname(png_path)).mkdir(parents=True, exist_ok=True)
+            png_path.parent.mkdir(parents=True, exist_ok=True)
             plt.imsave(png_path, rgba)
         return {
-            "imageUrl": f"/static/maxent_results/{species}.png",
+            "imageUrl": f"/static/maxent_results/{tif_path.stem}.png",
             "bounds": bounds
         }
     except Exception as e:
@@ -334,6 +372,18 @@ def get_qa_suggestions(species: str):
 def record_location(record: LocationRecord):
     """上报新的物种位置记录"""
     try:
+        inside = _coord_is_inside_china(record.longitude, record.latitude)
+        if inside is None:
+            return {
+                "status": "error",
+                "message": "国界参考数据未就绪，暂无法校验坐标。请确认后端可访问外网加载省界数据后重试。",
+            }
+        if not inside:
+            return {
+                "status": "error",
+                "message": "坐标须位于中国境内（与省级地图使用的官方省界范围一致）。",
+            }
+
         # 初始化 CSV 文件
         if not os.path.exists(LOCATIONS_RECORD_FILE):
             Path(LOCATIONS_RECORD_FILE).parent.mkdir(parents=True, exist_ok=True)

@@ -17,8 +17,8 @@
         </button>
       </div>
 
-      <!-- Tab 1: 分布识别分析 -->
-      <div v-if="activeTab === 0" class="tab-content">
+      <!-- Tab 1: 分布识别分析（v-show 保留 #map DOM，避免 Leaflet 在 0 尺寸下初始化或实例挂在已销毁节点上） -->
+      <div v-show="activeTab === 0" class="tab-content">
         <div class="map-analysis">
           <div class="sidebar">
             <div class="control-panel">
@@ -65,7 +65,7 @@
       </div>
 
       <!-- Tab 2: 智能知识问答 -->
-      <div v-if="activeTab === 1" class="tab-content">
+      <div v-show="activeTab === 1" class="tab-content">
         <div class="qa-container">
           <div class="chat-wrapper">
             <div class="chat-header">
@@ -134,7 +134,7 @@
       </div>
 
       <!-- Tab 3: 数据上报与更新 -->
-      <div v-if="activeTab === 2" class="tab-content">
+      <div v-show="activeTab === 2" class="tab-content">
         <div class="report-container">
           <div class="report-section">
             <h3>📝 新增物种分布记录</h3>
@@ -252,7 +252,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, watch, nextTick } from 'vue'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import 'leaflet.heat' // 需要安装 leaflet.heat 插件
@@ -328,15 +328,30 @@ onMounted(async () => {
   await loadAllRecords()
 })
 
-watch(() => activeTab.value, (newTab) => {
-  if (newTab === 0 && !map) {
-    // 延迟初始化以确保 DOM 已渲染
-    setTimeout(initMap, 100)
-  }
-  if (newTab === 2 && !reportMap) {
-    setTimeout(initReportMap, 100)
-  }
-})
+watch(
+  () => activeTab.value,
+  (newTab) => {
+    if (newTab === 0) {
+      nextTick(() => {
+        setTimeout(() => {
+          if (activeTab.value !== 0) return
+          if (!map) initMap()
+          else map.invalidateSize(true)
+        }, 100)
+      })
+    }
+    if (newTab === 2) {
+      nextTick(() => {
+        setTimeout(() => {
+          if (activeTab.value !== 2) return
+          if (!reportMap) initReportMap()
+          else reportMap.invalidateSize(true)
+        }, 100)
+      })
+    }
+  },
+  { immediate: true }
+)
 
 const loadSpeciesList = async () => {
   try {
@@ -446,8 +461,12 @@ const updatePoints = () => {
 }
 
 const loadHeatmapData = async () => {
+  if (!selectedSpecies.value) {
+    console.warn('请先在下拉框中选择物种后再查看热力图')
+    return
+  }
   try {
-    const response = await fetch(`${API_BASE}/heatmap/${encodeURIComponent(selectedSpecies.value || 'all')}`)
+    const response = await fetch(`${API_BASE}/heatmap/${encodeURIComponent(selectedSpecies.value)}`)
     const data = await response.json()
     const points = data.points || []
     if (points.length === 0) {
@@ -475,8 +494,12 @@ const loadHeatmapData = async () => {
 }
 
 const loadProvinceData = async () => {
+  if (!selectedSpecies.value) {
+    console.warn('请先在下拉框中选择物种后再查看省级填色图')
+    return
+  }
   try {
-    const response = await fetch(`${API_BASE}/province-data/${encodeURIComponent(selectedSpecies.value || 'all')}`)
+    const response = await fetch(`${API_BASE}/province-data/${encodeURIComponent(selectedSpecies.value)}`)
     const data = await response.json()
     const geojson = data.geojson
     provinceLayer = L.geoJSON(geojson, {
@@ -506,6 +529,10 @@ const loadProvinceData = async () => {
 }
 
 const loadMaxentData = async () => {
+  if (!selectedSpecies.value) {
+    console.warn('请先在下拉框中选择物种后再查看 MaxEnt 图层')
+    return
+  }
   try {
     const response = await fetch(`${API_BASE}/maxent-image/${encodeURIComponent(selectedSpecies.value)}`)
     const data = await response.json()

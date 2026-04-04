@@ -17,7 +17,6 @@
 
 2. **地理数据 API**
    - GET `/api/locations/{species}` - 获取物种分布点位
-   - GET `/api/distribution/{species}` - 获取按地区的分布统计
    - 支持坐标解析和地理查询
 
 3. **知识问答 API**
