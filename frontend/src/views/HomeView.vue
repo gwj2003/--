@@ -96,7 +96,8 @@
                   <button 
                     v-for="(q, idx) in randomQuestions" 
                     :key="idx"
-                    @click="askQuestion(q)"
+                    @click="sendPresetQuestion(q)"
+                    :disabled="isLoading"
                     class="sugg-btn"
                   >
                     {{ q }}
@@ -140,100 +141,136 @@
       <div v-show="activeTab === 2" class="tab-content">
         <div class="report-container">
           <div class="report-section">
-            <h3>📝 新增物种分布记录</h3>
-            <p class="guide-text">支持两种方式：在地图上选点或填写表单。确认无误后点击保存。</p>
-            <div class="form-area">
-              <div class="form-group">
-                <label>物种名称 *</label>
-                <select v-model="reportForm.species" class="form-input">
-                  <option value="">-- 选择物种 --</option>
-                  <option v-for="sp in speciesList" :key="sp" :value="sp">{{ sp }}</option>
-                </select>
-              </div>
-
-              <div class="form-row">
-                <button @click="forwardGeocode" class="small-btn">详细地名转经纬</button>
-                <button @click="reverseGeocode" class="small-btn">经纬转详细地名</button>
-              </div>
-              <p class="small-text">地图点选会自动填入三框。</p>
-
-              <div class="form-group">
-                <label>详细地名 *</label>
-                <input v-model="reportForm.location_name" class="form-input" placeholder="例：江苏省南京市玄武区XXX"/>
-              </div>
-
-              <div class="coords-row">
+            <div v-if="reportLeftView === 'form'" class="report-left-view">
+              <h3>📝 新增物种分布记录</h3>
+              <p class="guide-text">支持两种方式：在地图上选点或填写表单。确认无误后点击保存。</p>
+              <div class="form-area">
                 <div class="form-group">
-                  <label>经度 (Longitude) *</label>
-                  <input 
-                    v-model.number="reportForm.longitude" 
-                    type="number" 
-                    class="form-input" 
-                    placeholder="经度"
-                    step="0.000001"
-                    min="-180"
-                    max="180"
-                  />
+                  <label>物种名称 *</label>
+                  <select v-model="reportForm.species" class="form-input">
+                    <option value="">-- 选择物种 --</option>
+                    <option v-for="sp in speciesList" :key="sp" :value="sp">{{ sp }}</option>
+                  </select>
                 </div>
+
+                <div class="form-row">
+                  <button @click="forwardGeocode" class="small-btn">详细地名转经纬</button>
+                  <button @click="reverseGeocode" class="small-btn">经纬转详细地名</button>
+                </div>
+                <p class="small-text">地图点选会自动填入三框。</p>
+
                 <div class="form-group">
-                  <label>纬度 (Latitude) *</label>
-                  <input 
-                    v-model.number="reportForm.latitude" 
-                    type="number" 
-                    class="form-input" 
-                    placeholder="纬度"
-                    step="0.000001"
-                    min="-90"
-                    max="90"
-                  />
+                  <label>详细地名 *</label>
+                  <input v-model="reportForm.location_name" class="form-input" placeholder="例：江苏省南京市玄武区XXX"/>
                 </div>
-              </div>
 
-              <div class="form-group">
-                <label>发现日期</label>
-                <input v-model="reportForm.date" type="date" class="form-input"/>
-              </div>
+                <div class="coords-row">
+                  <div class="form-group">
+                    <label>经度 (Longitude) *</label>
+                    <input 
+                      v-model.number="reportForm.longitude" 
+                      type="number" 
+                      class="form-input" 
+                      placeholder="经度"
+                      step="0.000001"
+                      min="-180"
+                      max="180"
+                    />
+                  </div>
+                  <div class="form-group">
+                    <label>纬度 (Latitude) *</label>
+                    <input 
+                      v-model.number="reportForm.latitude" 
+                      type="number" 
+                      class="form-input" 
+                      placeholder="纬度"
+                      step="0.000001"
+                      min="-90"
+                      max="90"
+                    />
+                  </div>
+                </div>
 
-              <div class="button-group">
-                <button @click="saveLocation" class="save-btn" :disabled="!canSave">
-                  💾 保存记录
-                </button>
-                <button @click="resetForm" class="reset-btn">
-                  🔄 清空表单
-                </button>
-              </div>
+                <div class="form-group">
+                  <label>发现日期</label>
+                  <input v-model="reportForm.date" type="date" class="form-input"/>
+                </div>
 
-              <div v-if="reportMessage" :class="['message-box', reportMessageType]">
-                {{ reportMessage }}
+                <div class="button-group">
+                  <button @click="saveLocation" class="save-btn" :disabled="!canSave">
+                    💾 保存记录
+                  </button>
+                  <button @click="resetForm" class="reset-btn">
+                    🔄 清空表单
+                  </button>
+                </div>
+
+                <div v-if="reportMessage" :class="['message-box', reportMessageType]">
+                  {{ reportMessage }}
+                </div>
               </div>
             </div>
 
-            <div class="collected-data">
-              <h3>📊 已收集的记录</h3>
-              <div v-if="allRecords.length > 0" class="records-table">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>物种</th>
-                      <th>位置</th>
-                      <th>坐标</th>
-                      <th>日期</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr v-for="(record, idx) in allRecords" :key="idx">
-                      <td>{{ record.species }}</td>
-                      <td>{{ record.location_name }}</td>
-                      <td>{{ record.latitude.toFixed(4) }}, {{ record.longitude.toFixed(4) }}</td>
-                      <td>{{ record.date }}</td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-              <div v-else class="empty-state">
-                暂无记录数据
+            <div v-else class="report-left-view">
+              <div class="collected-data records-only">
+                <h3>📊 已收集的记录</h3>
+                <div class="records-toolbar">
+                  <select v-model="recordFilterSpecies" class="form-input toolbar-input">
+                    <option value="">全部物种</option>
+                    <option v-for="sp in speciesList" :key="`filter-${sp}`" :value="sp">{{ sp }}</option>
+                  </select>
+                  <input v-model="recordFilterDate" type="date" class="form-input toolbar-input" />
+                  <select v-model="recordSortField" class="form-input toolbar-input">
+                    <option value="date">按日期排序</option>
+                    <option value="species">按物种排序</option>
+                    <option value="location_name">按地点排序</option>
+                  </select>
+                  <select v-model="recordSortOrder" class="form-input toolbar-input toolbar-order">
+                    <option value="desc">降序</option>
+                    <option value="asc">升序</option>
+                  </select>
+                  <button class="small-btn" @click="resetRecordFilters">重置</button>
+                </div>
+
+                <div v-if="filteredSortedRecords.length > 0" class="records-table">
+                  <table>
+                    <colgroup>
+                      <col class="records-col-species" />
+                      <col class="records-col-location" />
+                      <col class="records-col-coords" />
+                      <col class="records-col-date" />
+                    </colgroup>
+                    <thead>
+                      <tr>
+                        <th>物种</th>
+                        <th>位置</th>
+                        <th>坐标</th>
+                        <th>日期</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr
+                        v-for="(record, idx) in filteredSortedRecords"
+                        :key="`${record.species}-${record.date}-${record.latitude}-${record.longitude}-${idx}`"
+                        @dblclick="focusRecordOnMap(record)"
+                      >
+                        <td>{{ record.species }}</td>
+                        <td>{{ record.location_name }}</td>
+                        <td>{{ record.latitude.toFixed(4) }}, {{ record.longitude.toFixed(4) }}</td>
+                        <td>{{ record.date }}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+                <div v-else class="empty-state">
+                  暂无记录数据
+                </div>
               </div>
             </div>
+
+            <button class="toggle-left-view-btn" @click="toggleReportLeftView">
+              {{ reportLeftToggleLabel }}
+            </button>
           </div>
 
           <div class="map-and-records">
@@ -263,18 +300,130 @@ import { marked } from 'marked'
 
 const API_BASE = '/api'
 
+const normalizeZhSpacing = (text) => {
+  return String(text || '')
+    .replace(/\s+/g, ' ')
+    .replace(/([\u4e00-\u9fff])\s+([\u4e00-\u9fff])/g, '$1$2')
+    .replace(/([\u4e00-\u9fff])\s+([，。！？；：、])/g, '$1$2')
+    .replace(/([，。！？；：、])\s+([\u4e00-\u9fff])/g, '$1$2')
+    .trim()
+}
+
+const cleanInvisibleCharacters = (text) => {
+  return String(text || '')
+    .replace(/\uFEFF/g, '')
+    .replace(/[\u200B-\u200D\u2060\u180E]/g, '')
+    .replace(/\u00A0/g, ' ')
+    .replace(/\u2028|\u2029/g, '\n')
+    .replace(/\r\n?/g, '\n')
+}
+
+const normalizeMarkdownForChat = (text) => {
+  const lines = cleanInvisibleCharacters(text).split('\n')
+
+  const mapped = lines.map((rawLine) => {
+    const line = rawLine.replace(/[ \t]+$/g, '')
+    const trimmed = line.trim()
+
+    if (!trimmed) return ''
+
+    // 标题前缀归一化：处理全角 #、转义 #、以及没有空格的 ###标题
+    const headingCandidate = trimmed.replace(/^\\+([#＃])/, '$1')
+    const headingPrefix = headingCandidate.match(/^[#＃]{1,6}\s*(.+)$/)
+    if (headingPrefix) {
+      const title = headingPrefix[1].trim().replace(/[：:]$/, '')
+      return title ? `### ${title}` : ''
+    }
+
+    // 识别类似“补充背景信息：”这类短标题行为章节标题
+    const shortTitleMatch = trimmed.match(/^([^，。；;！？!?]{2,18})[：:]$/)
+    if (shortTitleMatch && !/^[0-9一二三四五六七八九十]+[\.、]/.test(trimmed)) {
+      return `### ${shortTitleMatch[1]}`
+    }
+
+    // 识别“1. 入侵性：”并归一化为同一种标题组件
+    const numberedTitle = trimmed.match(/^([0-9一二三四五六七八九十]+)[\.、]\s*([^：:，。；;！？!?]{1,18})[：:]?$/)
+    if (numberedTitle) {
+      return `### ${numberedTitle[1]}. ${numberedTitle[2]}`
+    }
+
+    // 把常见符号列表统一为 Markdown 列表，并保留层级
+    const bulletMatch = line.match(/^(\s*)[•●▪▫◦○·\-]\s+(.*)$/)
+    if (bulletMatch) {
+      const leading = bulletMatch[1].replace(/\t/g, '  ').length
+      const content = bulletMatch[2].trim()
+      const level = Math.min(2, Math.floor(leading / 2))
+      return `${'  '.repeat(level)}- ${content}`
+    }
+
+    // 数字列表统一转为同一符号列表（避免数字/实心点混用）
+    const orderedMatch = line.match(/^(\s*)(\d+)[\.、]\s*(.+)$/)
+    if (orderedMatch) {
+      const leading = orderedMatch[1].replace(/\t/g, '  ').length
+      const content = orderedMatch[3].trim()
+      const level = Math.min(2, Math.floor(leading / 2))
+      return `${'  '.repeat(level)}- ${content}`
+    }
+
+    return line
+  })
+
+  // 将独立的短编号标题转为标题组件（例如："1. 生态危害"）
+  const sectionized = mapped.map((line, idx, arr) => {
+    const m = line.match(/^\s*([0-9一二三四五六七八九十]+)[\.、]\s*([^：:。；;，,]{2,22})\s*$/)
+    if (!m) return line
+
+    const prev = idx > 0 ? arr[idx - 1].trim() : ''
+    const next = idx < arr.length - 1 ? arr[idx + 1].trim() : ''
+    const hasContext = prev !== '' || next !== ''
+    if (!hasContext) return line
+
+    return `### ${m[1]}. ${m[2]}`
+  })
+
+  // 标题块强制换段：确保标题前后独立成段，避免 ### 明文
+  const withHeadingSpacing = []
+  sectionized.forEach((line, idx) => {
+    const trimmed = line.trim()
+    const isHeading = /^#{3}\s+/.test(trimmed)
+
+    if (isHeading) {
+      const prev = withHeadingSpacing.length > 0 ? withHeadingSpacing[withHeadingSpacing.length - 1] : ''
+      if (prev.trim() !== '') {
+        withHeadingSpacing.push('')
+      }
+      withHeadingSpacing.push(trimmed)
+
+      const next = idx < sectionized.length - 1 ? sectionized[idx + 1].trim() : ''
+      if (next !== '') {
+        withHeadingSpacing.push('')
+      }
+      return
+    }
+
+    withHeadingSpacing.push(line)
+  })
+
+  return withHeadingSpacing
+    .join('\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+}
+
 /**
  * 渲染Markdown为HTML，支持安全的HTML渲染
  */
 const renderMarkdown = (content) => {
   if (!content) return ''
   try {
+    const normalized = normalizeMarkdownForChat(content)
+
     // 配置marked选项
     marked.setOptions({
       breaks: true,
       gfm: true,
     })
-    return marked(content)
+    return marked(normalized)
   } catch (e) {
     console.error('Markdown渲染错误:', e)
     return content.replace(/</g, '&lt;').replace(/>/g, '&gt;')
@@ -392,10 +541,18 @@ const reportForm = ref({
 })
 const reportMessage = ref('')
 const reportMessageType = ref('success')
+const reportLeftView = ref('form')
 const allRecords = ref([])
+const recordFilterSpecies = ref('')
+const recordFilterDate = ref('')
+const recordSortField = ref('date')
+const recordSortOrder = ref('desc')
 let reportMap = null
 let reportMapMarker = null
 let reportTileLayer = null  // Tab3的底图图层
+let reportRecordsLayer = null
+let reportReverseGeocodeTimer = null
+let reportRecordMarkerMap = new Map()
 const reportBasemap = ref('osm')  // Tab3的底图选择
 
 const tabs = ref([
@@ -409,6 +566,37 @@ const canSave = computed(() => {
          reportForm.value.location_name && 
          reportForm.value.latitude !== null && 
          reportForm.value.longitude !== null
+})
+
+const reportLeftToggleLabel = computed(() => {
+  return reportLeftView.value === 'form'
+    ? '切换为📊 已收集的记录'
+    : '切换为📝 新增物种分布记录'
+})
+
+const filteredSortedRecords = computed(() => {
+  const rows = allRecords.value.filter((r) => {
+    const bySpecies = !recordFilterSpecies.value || r.species === recordFilterSpecies.value
+    const byDate = !recordFilterDate.value || String(r.date || '').startsWith(recordFilterDate.value)
+    return bySpecies && byDate
+  })
+
+  rows.sort((a, b) => {
+    const field = recordSortField.value
+    let result = 0
+
+    if (field === 'date') {
+      const aTime = new Date(a.date || '1970-01-01').getTime()
+      const bTime = new Date(b.date || '1970-01-01').getTime()
+      result = aTime - bTime
+    } else {
+      result = String(a[field] || '').localeCompare(String(b[field] || ''), 'zh-CN')
+    }
+
+    return recordSortOrder.value === 'asc' ? result : -result
+  })
+
+  return rows
 })
 
 // =============== 初始化和加载数据 ===============
@@ -433,13 +621,36 @@ watch(
       nextTick(() => {
         setTimeout(() => {
           if (activeTab.value !== 2) return
-          if (!reportMap) initReportMap()
-          else reportMap.invalidateSize(true)
+          if (!reportMap) {
+            initReportMap()
+          } else {
+            reportMap.invalidateSize(true)
+            renderReportPointsOnMap(filteredSortedRecords.value)
+          }
         }, 100)
       })
     }
   },
   { immediate: true }
+)
+
+watch(
+  () => filteredSortedRecords.value,
+  (records) => {
+    if (!reportMap) return
+    renderReportPointsOnMap(records)
+  }
+)
+
+watch(
+  () => reportLeftView.value,
+  (view) => {
+    if (view !== 'form' && reportReverseGeocodeTimer) {
+      clearTimeout(reportReverseGeocodeTimer)
+      reportReverseGeocodeTimer = null
+    }
+    updateReportMapByView()
+  }
 )
 
 const loadSpeciesList = async () => {
@@ -618,12 +829,14 @@ const loadMaxentData = async () => {
 const initReportMap = () => {
   if (reportMap) return
   reportMap = L.map('report-map').setView([35.0, 105.0], 4)
+  reportRecordsLayer = L.layerGroup().addTo(reportMap)
 
   changeReportBasemap()
-
-  let debounceTimer = null // 声明防抖定时器变量
+  updateReportMapByView()
 
   reportMap.on('click', async (e) => {
+    if (reportLeftView.value !== 'form') return
+
     const { lat, lng } = e.latlng
     // 1. 立即更新界面的经纬度并打点（无需等待）
     reportForm.value.latitude = parseFloat(lat.toFixed(6))
@@ -632,12 +845,12 @@ const initReportMap = () => {
     setReportMarker(reportForm.value.latitude, reportForm.value.longitude)
 
     // 2. 清除之前的定时器，防止连续点击产生多个请求
-    if (debounceTimer) {
-      clearTimeout(debounceTimer)
+    if (reportReverseGeocodeTimer) {
+      clearTimeout(reportReverseGeocodeTimer)
     }
 
     // 3. 设置新的定时器，延迟 1 秒触发请求
-    debounceTimer = setTimeout(async () => {
+    reportReverseGeocodeTimer = setTimeout(async () => {
       try {
         const r = await fetch(`${API_BASE}/reverse-geocode?lat=${reportForm.value.latitude}&lon=${reportForm.value.longitude}`)
         const json = await r.json()
@@ -669,11 +882,85 @@ const changeReportBasemap = () => {
 
 const setReportMarker = (lat, lng) => {
   if (!reportMap) return
+
+  if (reportLeftView.value !== 'form') return
+
   if (reportMapMarker) {
     reportMap.removeLayer(reportMapMarker)
   }
   reportMapMarker = L.marker([lat, lng]).addTo(reportMap)
   reportMap.setView([lat, lng], 10)
+}
+
+const renderReportPointsOnMap = (records) => {
+  if (!reportMap || !reportRecordsLayer) return
+
+  if (reportLeftView.value !== 'records') {
+    reportRecordsLayer.clearLayers()
+    reportRecordMarkerMap = new Map()
+    return
+  }
+
+  reportRecordsLayer.clearLayers()
+  reportRecordMarkerMap = new Map()
+
+  const validRows = (records || []).filter(r => Number.isFinite(r.latitude) && Number.isFinite(r.longitude))
+  validRows.forEach((r) => {
+    const marker = L.circleMarker([r.latitude, r.longitude], {
+      radius: 6,
+      fillColor: '#1f7ae0',
+      color: '#0e4f99',
+      weight: 1,
+      opacity: 0.95,
+      fillOpacity: 0.82
+    })
+
+    marker.bindPopup(`
+      <div style="min-width: 180px; line-height: 1.5;">
+        <div><strong>物种：</strong>${r.species || '-'}</div>
+        <div><strong>位置：</strong>${r.location_name || '-'}</div>
+        <div><strong>坐标：</strong>${Number(r.latitude).toFixed(6)}, ${Number(r.longitude).toFixed(6)}</div>
+        <div><strong>日期：</strong>${r.date || '-'}</div>
+      </div>
+    `)
+
+    marker.addTo(reportRecordsLayer)
+    reportRecordMarkerMap.set(getRecordMarkerKey(r), marker)
+  })
+}
+
+const getRecordMarkerKey = (record) => {
+  return `${record.species || ''}|${record.date || ''}|${Number(record.latitude).toFixed(6)}|${Number(record.longitude).toFixed(6)}`
+}
+
+const focusRecordOnMap = (record) => {
+  if (reportLeftView.value !== 'records') return
+
+  const lat = Number(record?.latitude)
+  const lng = Number(record?.longitude)
+  if (!reportMap || !Number.isFinite(lat) || !Number.isFinite(lng)) return
+
+  reportMap.flyTo([lat, lng], Math.max(reportMap.getZoom(), 9), { duration: 0.6 })
+
+  const marker = reportRecordMarkerMap.get(getRecordMarkerKey(record))
+  if (marker) {
+    marker.openPopup()
+  }
+}
+
+const updateReportMapByView = () => {
+  if (!reportMap || !reportRecordsLayer) return
+
+  if (reportLeftView.value === 'records') {
+    if (reportMapMarker && reportMap.hasLayer(reportMapMarker)) {
+      reportMap.removeLayer(reportMapMarker)
+    }
+    renderReportPointsOnMap(filteredSortedRecords.value)
+    return
+  }
+
+  reportRecordsLayer.clearLayers()
+  reportRecordMarkerMap = new Map()
 }
 
 const forwardGeocode = async () => {
@@ -736,7 +1023,7 @@ const loadSuggestions = async (species) => {
   try {
     const response = await fetch(`${API_BASE}/qa/suggestions/${encodeURIComponent(species)}`)
     const data = await response.json()
-    allSuggestions.value = data.suggestions || []
+    allSuggestions.value = (data.suggestions || []).map((q) => normalizeZhSpacing(q))
   } catch (error) {
     console.error('加载建议失败:', error)
     allSuggestions.value = []
@@ -758,9 +1045,10 @@ const refreshRandomQuestions = () => {
 }
 
 const selectChatSpecies = async (species) => {
-  chatSpecies.value = species
-  lastSpeciesForRefresh.value = species
-  await loadSuggestions(species)
+  const normalizedSpecies = String(species || '').trim()
+  chatSpecies.value = normalizedSpecies
+  lastSpeciesForRefresh.value = normalizedSpecies
+  await loadSuggestions(normalizedSpecies)
   refreshRandomQuestions()
   // 选择新物种后滚动到顶部以显示欢迎信息
   scrollToBottom()
@@ -781,7 +1069,7 @@ const scrollToBottom = () => {
 const sendMessage = () => {
   if (!userInput.value.trim()) return
   
-  const question = userInput.value
+  const question = normalizeZhSpacing(userInput.value)
   userInput.value = ''
   
   chatMessages.value.push({
@@ -796,14 +1084,31 @@ const sendMessage = () => {
   askQuestion(question)
 }
 
+const sendPresetQuestion = (question) => {
+  const normalizedQuestion = normalizeZhSpacing(question)
+  if (!normalizedQuestion || isLoading.value) return
+
+  chatMessages.value.push({
+    id: msgId++,
+    role: 'user',
+    content: normalizedQuestion
+  })
+
+  scrollToBottom()
+  askQuestion(normalizedQuestion)
+}
+
 const askQuestion = async (question) => {
+  const normalizedQuestion = normalizeZhSpacing(question)
+  if (!normalizedQuestion) return
+
   isLoading.value = true
   
   try {
     const response = await fetch(`${API_BASE}/qa`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ question })
+      body: JSON.stringify({ question: normalizedQuestion })
     })
     const data = await response.json()
     if (!response.ok) {
@@ -903,6 +1208,17 @@ const resetForm = () => {
     date: new Date().toISOString().split('T')[0]
   }
 }
+
+const resetRecordFilters = () => {
+  recordFilterSpecies.value = ''
+  recordFilterDate.value = ''
+  recordSortField.value = 'date'
+  recordSortOrder.value = 'desc'
+}
+
+const toggleReportLeftView = () => {
+  reportLeftView.value = reportLeftView.value === 'form' ? 'records' : 'form'
+}
 </script>
 
 <style scoped>
@@ -910,9 +1226,22 @@ const resetForm = () => {
   box-sizing: border-box;
 }
 
+:global(html),
+:global(body),
+:global(#app) {
+  width: 100%;
+  min-height: 100%;
+}
+
+:global(body) {
+  overflow-y: scroll;
+  scrollbar-gutter: stable both-edges;
+}
+
 .home-container {
   min-height: 100vh;
   background: #f5f7fa;
+  overflow-x: hidden;
 }
 
 .app-header {
@@ -946,6 +1275,7 @@ const resetForm = () => {
   gap: 10px;
   margin-bottom: 20px;
   border-bottom: 2px solid #ddd;
+  padding-inline: 4px;
 }
 
 .tab-btn {
@@ -1151,7 +1481,7 @@ const resetForm = () => {
 .messages-container {
   flex: 1;
   overflow-y: auto;
-  padding: 20px;
+  padding: 20px 18px;
   display: flex;
   flex-direction: column;
   gap: 14px;
@@ -1183,6 +1513,7 @@ const resetForm = () => {
   display: flex;
   margin: 0;
   animation: slideIn 0.3s ease-out;
+  width: 100%;
 }
 
 @keyframes slideIn {
@@ -1202,13 +1533,14 @@ const resetForm = () => {
 
 .message.assistant {
   justify-content: flex-start;
+  padding-left: 4px;
 }
 
 .message-content {
-  max-width: 75%;
-  padding: 12px 16px;
+  max-width: min(78%, 780px);
+  padding: 13px 17px;
   border-radius: 12px;
-  line-height: 1.5;
+  line-height: 1.62;
   word-wrap: break-word;
   word-break: break-word;
   overflow-wrap: break-word;
@@ -1221,14 +1553,16 @@ const resetForm = () => {
   color: white;
   border-bottom-right-radius: 4px;
   box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+  margin-left: auto;
 }
 
 .message.assistant .message-content {
-  background: white;
-  color: #333;
-  border: 1px solid #e0e0e0;
-  border-bottom-left-radius: 4px;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+  background: linear-gradient(180deg, #ffffff 0%, #fbfcff 100%);
+  color: #1f2937;
+  border: 1px solid #e5eaf2;
+  border-bottom-left-radius: 6px;
+  box-shadow: 0 4px 16px rgba(16, 24, 40, 0.065);
+  margin-right: auto;
 }
 
 .message-text {
@@ -1244,10 +1578,24 @@ const resetForm = () => {
   display: none;
 }
 .markdown-body {
-  font-size: 0.95em;
-  line-height: 1.7;
-  color: #2c3e50;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --md-indent-1: 1.36em;
+  --md-indent-2: 1.18em;
+  --md-indent-3: 1.04em;
+  font-size: 0.95rem;
+  line-height: 1.76;
+  color: #1f2937;
+  font-family: 'Segoe UI', 'PingFang SC', 'Noto Sans SC', sans-serif;
+  letter-spacing: 0.01em;
+  padding-left: 0;
+  max-width: 68ch;
+}
+
+.markdown-body > :first-child {
+  margin-top: 0;
+}
+
+.markdown-body > :last-child {
+  margin-bottom: 0;
 }
 
 .markdown-body h1,
@@ -1256,145 +1604,204 @@ const resetForm = () => {
 .markdown-body h4,
 .markdown-body h5,
 .markdown-body h6 {
-  margin-top: 16px;
-  margin-bottom: 10px;
+  margin-top: 1.04em;
+  margin-bottom: 0.5em;
+  font-size: 1.02em;
   font-weight: 700;
-  color: #1a5490;
-  border-bottom: 2px solid #e8f0f7;
-  padding-bottom: 8px;
-}
-
-.markdown-body h1 { 
-  font-size: 1.4em;
-  color: #0d47a1;
-  border-bottom: 3px solid #1976d2;
-}
-
-.markdown-body h2 { 
-  font-size: 1.25em;
-  color: #1565c0;
-  border-bottom: 2px solid #1976d2;
-}
-
-.markdown-body h3 { 
-  font-size: 1.15em;
-  color: #1976d2;
-  border-bottom: 2px solid #90caf9;
-}
-
-.markdown-body h4 { 
-  font-size: 1.05em;
-  color: #1976d2;
+  line-height: 1.38;
+  color: #1e3a5f;
+  background: #f3f6fb;
+  border: 1px solid #d9e3f2;
+  border-left: 4px solid #8ea5ce;
+  border-radius: 10px;
+  padding: 6px 10px;
 }
 
 .markdown-body p {
-  margin: 10px 0;
-  line-height: 1.7;
+  margin: 0.66em 0;
 }
 
-.markdown-body ul,
-.markdown-body ol {
-  margin: 12px 0;
-  padding-left: 32px;
+.markdown-body :deep(ul),
+.markdown-body :deep(ol) {
+  margin: 0.62em 0 0.7em;
+  padding-left: var(--md-indent-1);
+  margin-left: 0.18em;
+  list-style-position: outside;
 }
 
-.markdown-body li {
-  margin: 8px 0;
-  line-height: 1.7;
+.markdown-body :deep(ul) {
+  list-style-type: disc;
 }
 
-.markdown-body ul > li::marker {
-  color: #1976d2;
+.markdown-body :deep(ol) {
+  list-style-type: decimal;
+}
+
+.markdown-body :deep(li) {
+  margin: 0.3em 0;
+  line-height: 1.64;
+  padding-left: 0.12em;
+}
+
+.markdown-body :deep(li > p) {
+  margin: 0.24em 0 0.42em;
+}
+
+.markdown-body :deep(li > ul),
+.markdown-body :deep(li > ol) {
+  margin-top: 0.26em;
+  margin-bottom: 0.18em;
+}
+
+.markdown-body :deep(ul li::marker),
+.markdown-body :deep(ol li::marker) {
+  color: #4b5563;
+  font-size: 0.96em;
   font-weight: 600;
 }
 
-.markdown-body ol > li::marker {
-  color: #1976d2;
-  font-weight: 600;
+.markdown-body :deep(ol li::marker) {
+  font-variant-numeric: tabular-nums;
+}
+
+.markdown-body :deep(ul ul),
+.markdown-body :deep(ol ul),
+.markdown-body :deep(ul ol),
+.markdown-body :deep(ol ol) {
+  margin: 0.26em 0;
+  padding-left: var(--md-indent-2);
+  font-size: 0.96em;
+  list-style-position: outside;
+}
+
+.markdown-body :deep(ul ul),
+.markdown-body :deep(ol ul) {
+  list-style-type: circle;
+}
+
+.markdown-body :deep(ul ol),
+.markdown-body :deep(ol ol) {
+  list-style-type: decimal;
+}
+
+.markdown-body :deep(ul ul ul),
+.markdown-body :deep(ol ul ul),
+.markdown-body :deep(ul ol ul),
+.markdown-body :deep(ol ol ul),
+.markdown-body :deep(ul ul ol),
+.markdown-body :deep(ol ul ol),
+.markdown-body :deep(ul ol ol),
+.markdown-body :deep(ol ol ol) {
+  padding-left: var(--md-indent-3);
+  font-size: 0.94em;
+  list-style-position: outside;
+}
+
+.markdown-body :deep(ul ul ul),
+.markdown-body :deep(ol ul ul),
+.markdown-body :deep(ul ol ul),
+.markdown-body :deep(ol ol ul) {
+  list-style-type: square;
+}
+
+.markdown-body :deep(ul ul ol),
+.markdown-body :deep(ol ul ol),
+.markdown-body :deep(ul ol ol),
+.markdown-body :deep(ol ol ol) {
+  list-style-type: lower-alpha;
+}
+
+.markdown-body :deep(ul ul li::marker),
+.markdown-body :deep(ol ul li::marker),
+.markdown-body :deep(ul ol li::marker),
+.markdown-body :deep(ol ol li::marker) {
+  color: #99a4b3;
+  font-size: 0.9em;
+  font-weight: 500;
 }
 
 .markdown-body code {
-  background: #f5f7fa;
-  border-radius: 4px;
-  padding: 3px 8px;
-  font-family: 'Courier New', 'Courier', monospace;
-  color: #e83e8c;
-  font-size: 0.9em;
-  border: 1px solid #e0e6ed;
+  background: #f3f4f6;
+  border-radius: 6px;
+  padding: 0.16em 0.44em;
+  font-family: 'Cascadia Code', 'Consolas', monospace;
+  color: #b42318;
+  font-size: 0.88em;
+  border: 1px solid #e5e7eb;
 }
 
 .markdown-body pre {
-  background: #f5f7fa;
-  border-left: 4px solid #1976d2;
-  border-radius: 4px;
-  padding: 12px;
+  background: #0f172a;
+  border-radius: 10px;
+  padding: 12px 14px;
   overflow-x: auto;
-  margin: 12px 0;
-  border: 1px solid #e0e6ed;
+  margin: 0.75em 0;
+  border: 1px solid #111827;
 }
 
 .markdown-body pre code {
   background: none;
   padding: 0;
-  color: #2c3e50;
+  color: #e5e7eb;
   border: none;
+  font-size: 0.87em;
+  line-height: 1.6;
 }
 
 .markdown-body blockquote {
-  border-left: 4px solid #1976d2;
-  margin: 12px 0;
-  padding-left: 16px;
-  color: #666;
-  font-style: italic;
-  background: #f9f9f9;
-  padding: 12px;
-  border-radius: 4px;
+  border-left: 3px solid #94a3b8;
+  margin: 0.75em 0;
+  color: #475467;
+  background: #f8fafc;
+  padding: 10px 12px;
+  border-radius: 8px;
 }
 
 .markdown-body strong {
   font-weight: 700;
-  color: #1565c0;
+  color: #101828;
 }
 
 .markdown-body em {
   font-style: italic;
-  color: #d32f2f;
+  color: #475467;
 }
 
 .markdown-body hr {
   border: none;
-  border-top: 2px dashed #ccc;
-  margin: 16px 0;
+  border-top: 1px solid #e7edf5;
+  margin: 1.1em 0 0.95em;
 }
 
 .markdown-body table {
-  border-collapse: collapse;
+  border-collapse: separate;
+  border-spacing: 0;
   width: 100%;
-  margin: 12px 0;
-  border: 1px solid #ddd;
-  border-radius: 4px;
+  margin: 0.75em 0;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
   overflow: hidden;
 }
 
 .markdown-body th,
 .markdown-body td {
-  border: 1px solid #ddd;
-  padding: 10px 12px;
+  border-bottom: 1px solid #edf1f5;
+  padding: 9px 11px;
   text-align: left;
 }
 
 .markdown-body th {
-  background: #1976d2;
-  color: white;
+  background: #f8fafc;
+  color: #1f2937;
   font-weight: 700;
 }
 
-.markdown-body tr:nth-child(even) {
-  background: #f9f9f9;
+.markdown-body tr:last-child td {
+  border-bottom: none;
 }
 
 .markdown-body tr:hover {
-  background: #f0f5ff;
+  background: #f8fafc;
 }
 
 .loading {
@@ -1521,6 +1928,11 @@ const resetForm = () => {
   box-shadow: 0 2px 8px rgba(102, 126, 234, 0.2);
 }
 
+.sugg-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
 .species-panel {
   background: white;
   border: 1px solid #eee;
@@ -1585,7 +1997,7 @@ const resetForm = () => {
   grid-template-columns: 0.85fr 1.15fr;
   gap: 20px;
   padding: 20px;
-  min-height: 00px;
+  min-height: 0;
   align-items: stretch;
   height: calc(100vh - 380px);
 }
@@ -1595,6 +2007,16 @@ const resetForm = () => {
   padding: 20px;
   border-radius: 8px;
   border: 1px solid #eee;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.report-left-view {
+  min-height: 0;
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
 }
 
 .report-section h3 {
@@ -1766,6 +2188,33 @@ const resetForm = () => {
   padding: 20px;
   border-radius: 8px;
   border: 1px solid #eee;
+  margin-top: 0;
+  min-height: 0;
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.records-only {
+  padding: 16px;
+}
+
+.toggle-left-view-btn {
+  margin-top: 14px;
+  width: 100%;
+  border: 1px solid #667eea;
+  background: #f4f6ff;
+  color: #4a5ed0;
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.toggle-left-view-btn:hover {
+  background: #667eea;
+  color: white;
 }
 
 .collected-data h3 {
@@ -1773,36 +2222,101 @@ const resetForm = () => {
   color: #333;
 }
 
+.records-toolbar {
+  display: grid;
+  grid-template-columns: 1.1fr 1fr 1fr 0.8fr auto;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.toolbar-input {
+  padding: 8px 10px;
+}
+
+.toolbar-order {
+  min-width: 82px;
+}
+
 .records-table {
-  overflow-x: auto;
+  overflow: auto;
+  max-height: min(52vh, 520px);
+  border: 1px solid #eee;
+  border-radius: 6px;
+}
+
+.records-table::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.records-table::-webkit-scrollbar-thumb {
+  background: #c0c0c0;
+  border-radius: 4px;
+}
+
+.records-table::-webkit-scrollbar-thumb:hover {
+  background: #a7a7a7;
 }
 
 .records-table table {
   width: 100%;
   border-collapse: collapse;
   font-size: 0.9em;
+  table-layout: fixed;
+}
+
+/* 在这里调整每一列默认宽度 */
+.records-col-species {
+  width: 18%;
+}
+
+.records-col-location {
+  width: 42%;
+}
+
+.records-col-coords {
+  width: 22%;
+}
+
+.records-col-date {
+  width: 18%;
 }
 
 .records-table thead {
   background: #f8f9fa;
 }
 
+.records-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: #f8f9fa;
+  opacity: 1;
+}
+
 .records-table th {
   padding: 10px;
-  text-align: left;
+  text-align: center;
   font-weight: 600;
   color: #333;
   border-bottom: 2px solid #ddd;
+  background: #f8f9fa;
 }
 
 .records-table td {
   padding: 10px;
   border-bottom: 1px solid #eee;
   color: #666;
+  vertical-align: top;
+  word-break: break-word;
 }
 
 .records-table tbody tr:hover {
   background: #f8f9fa;
+}
+
+.records-table tbody tr {
+  cursor: pointer;
 }
 
 .record-value {
@@ -1833,10 +2347,35 @@ const resetForm = () => {
 
   .qa-container {
     grid-template-columns: 1fr;
+    min-height: auto;
+    height: auto;
   }
 
   .report-container {
     grid-template-columns: 1fr;
+    min-height: auto;
+    height: auto;
+  }
+
+  .records-toolbar {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .toggle-left-view-btn {
+    margin-top: 12px;
+  }
+
+  .chat-wrapper {
+    max-height: none;
+  }
+
+  .messages-container {
+    max-height: 56vh;
+    min-height: 42vh;
+  }
+
+  .records-table {
+    max-height: 300px;
   }
 
   .coords-row {
