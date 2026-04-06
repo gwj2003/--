@@ -43,6 +43,7 @@ Thumbs.db
 backend/runtime/*
 !backend/runtime/README.md
 backend/data/
+backend/blueguard/
 *.db
 *.sqlite
 build/

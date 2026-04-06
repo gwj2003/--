@@ -8,8 +8,10 @@
         "package.json": "package-lock.json, pnpm*, .yarnrc*, yarn*, .eslint*, eslint*, .oxlint*, oxlint*, .oxfmt*, .prettier*, prettier*, .editorconfig"
     },
     "workbench.browser.enableChatTools": true,
-    // Workspace Python interpreter (Conda env 'blueguard') — use USERPROFILE for portability
-    "python.defaultInterpreterPath": "${env:USERPROFILE}\\anaconda3\\envs\\blueguard\\python.exe",
+    // Workspace Python interpreter (local backend/blueguard environment)
+    "python.defaultInterpreterPath": "${workspaceFolder}\\backend\\blueguard\\python.exe",
+    // Auto-activate selected interpreter in new integrated terminals
+    "python.terminal.activateEnvironment": true,
     // Use conda executable under USERPROFILE for portability
     "python.condaPath": "${env:USERPROFILE}\\anaconda3\\Scripts\\conda.exe",
     "python.formatting.provider": "black",
