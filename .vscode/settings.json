@@ -3,10 +3,16 @@
     "python-envs.defaultPackageManager": "ms-python.python:conda",
     "explorer.fileNesting.enabled": true,
     "explorer.fileNesting.patterns": {
-    "tsconfig.json": "tsconfig.*.json, env.d.ts, typed-router.d.ts",
-    "vite.config.*": "jsconfig*, vitest.config.*, cypress.config.*, playwright.config.*",
-    "package.json": "package-lock.json, pnpm*, .yarnrc*, yarn*, .eslint*, eslint*, .oxlint*, oxlint*, .oxfmt*, .prettier*, prettier*, .editorconfig"
-
-},
-"workbench.browser.enableChatTools": true
+        "tsconfig.json": "tsconfig.*.json, env.d.ts, typed-router.d.ts",
+        "vite.config.*": "jsconfig*, vitest.config.*, cypress.config.*, playwright.config.*",
+        "package.json": "package-lock.json, pnpm*, .yarnrc*, yarn*, .eslint*, eslint*, .oxlint*, oxlint*, .oxfmt*, .prettier*, prettier*, .editorconfig"
+    },
+    "workbench.browser.enableChatTools": true,
+    // Workspace Python interpreter (Conda env 'blueguard') — use USERPROFILE for portability
+    "python.defaultInterpreterPath": "${env:USERPROFILE}\\anaconda3\\envs\\blueguard\\python.exe",
+    // Use conda executable under USERPROFILE for portability
+    "python.condaPath": "${env:USERPROFILE}\\anaconda3\\Scripts\\conda.exe",
+    "python.formatting.provider": "black",
+    "python.linting.flake8Enabled": true,
+    "editor.formatOnSave": true
 }

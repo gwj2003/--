@@ -1,0 +1,16 @@
+name: blueguard
+channels:
+  - conda-forge
+dependencies:
+  - python=3.10
+  - pip
+  - numpy
+  - pandas
+  - geopandas
+  - rasterio
+  - shapely
+  - matplotlib
+  - requests
+  - sqlalchemy
+  - pip:
+    - -r backend/requirements.txt

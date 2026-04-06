@@ -167,19 +167,7 @@ git commit -m "chore: update pre-commit hooks"
 
 ## 测试
 
-### 运行测试
-
-```bash
-# 后端
-cd backend
-pytest
-
-# 前端（如果有测试）
-cd frontend
-npm test
-```
-
-详见 `TESTING.md`。
+详见 [QUICKSTART.md](QUICKSTART.md#-验证服务运行正常) 的验证部分。
 
 ---
 

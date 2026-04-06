@@ -20,6 +20,7 @@ node_modules/
 dist/
 dist-ssr/
 
+
 # Editors
 .vscode/*
 !.vscode/extensions.json
@@ -38,8 +39,10 @@ coverage/
 Thumbs.db
 
 # Project data
-backend/runtime/
-!backend/runtime/
+# Ignore runtime artifacts but keep the runtime README
 backend/runtime/*
 !backend/runtime/README.md
 backend/data/
+*.db
+*.sqlite
+build/
