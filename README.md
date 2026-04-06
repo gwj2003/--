@@ -40,6 +40,78 @@ npm run dev
 - 后端 API：http://localhost:8000
 - OpenAPI 文档：http://localhost:8000/docs
 
+## 项目架构
+
+### 前端架构（组件化设计）
+
+从 2026-04-06 起，前端采用组件化架构提升可维护性：
+
+```
+frontend/src/
+├── components/                      # 功能组件
+│   ├── chat/ChatPanel.vue          # 知识问答面板
+│   ├── report/ReportPanel.vue      # 数据上报面板
+│   └── species/SpeciesMapPanel.vue # 物种分析面板
+├── composables/                    # 组合函数（业务逻辑）
+│   ├── useChatQa.js               # 问答交互逻辑
+│   ├── useReportMap.js            # 上报地图逻辑
+│   └── useSpeciesMap.js           # 分析地图逻辑
+├── api/                           # API 通信
+│   ├── client.js                  # 统一请求客户端
+│   └── geocoding.js               # 地理编码服务
+└── utils/                         # 工具函数
+    └── maps.js                    # 地图底图配置
+```
+
+**设计优势：**
+- ✅ 组件职责清晰，易于单元测试
+- ✅ 业务逻辑剥离到 composables，复用率高
+- ✅ API 调用统一管理，便于拦截器和错误处理
+
+### 后端架构（分层设计）
+
+后端采用经典分层架构，自上而下分别是：
+
+```
+backend/
+├── api/                          # 最上层：API 入口
+│   ├── router.py                # 路由汇聚器
+│   ├── errors.py                # 异常处理器
+│   └── routes/                  # 按业务领域分解
+│       ├── admin.py             # 管理端点
+│       ├── analytics.py         # 分析与可视化
+│       ├── geo.py               # 地理编码
+│       ├── qa.py                # 知识问答
+│       ├── records.py           # 记录管理
+│       ├── species.py           # 物种管理
+│       └── system.py            # 系统健康检查
+├── services/                    # 业务逻辑层
+│   ├── admin.py                # 管理服务
+│   ├── analytics.py            # 分析服务
+│   ├── geocoding.py            # 地理编码（包含速率限制）
+│   ├── qa.py                   # 问答服务
+│   ├── records.py              # 记录服务
+│   └── species.py              # 物种服务
+├── repositories/               # 数据访问层（DAL）
+│   ├── species_repository.py   # 物种数据访问
+│   ├── records_repository.py   # 记录数据访问
+│   └── stats_repository.py     # 统计数据访问
+├── models/                     # 数据模型层
+│   ├── base.py                # SQLAlchemy Base
+│   └── species.py             # ORM 模型定义
+└── schemas/                    # 请求/响应模式
+    ├── qa.py                  # 问答模式
+    └── records.py             # 记录模式
+```
+
+**分层说明：**
+1. **API 层**：接收请求、参数验证、统一错误处理
+2. **服务层**：核心业务逻辑、缓存、数据验证
+3. **数据访问层**：SQL 执行、事务管理、结果映射
+4. **模型层**：ORM 定义、关系映射
+
+**调用流向：** `Request` → `Route` → `Service` → `Repository` → `Database` → `Response`
+
 ## 核心功能
 
 - 分布识别分析：地图点位、热力图、省级统计、MaxEnt 图层
@@ -129,15 +201,31 @@ WHERE id = 1;
 
 ## 常用 API
 
-- `GET /api/species`
-- `GET /api/species/{species}`
-- `GET /api/locations/{species}`
-- `GET /api/province-data/{species}`
-- `GET /api/maxent-image/{species}`
-- `POST /api/qa`
-- `POST /api/record/location`
-- `GET /api/records`
-- `GET /api/health`
+### 物种管理（species.py）
+- `GET /api/species` - 获取所有物种列表
+- `GET /api/species/{species}` - 获取物种详细信息
+- `GET /api/locations/{species}` - 获取物种分布位置
+
+### 分析与可视化（analytics.py）
+- `GET /api/heatmap/{species}` - 热力图数据
+- `GET /api/province-data/{species}` - 省级填色图数据
+- `GET /api/maxent-image/{species}` - MaxEnt 预测图像
+
+### 地理编码（geo.py）
+- `GET /api/geocode?address=...` - 地点转经纬度
+- `GET /api/reverse-geocode?lat=...&lon=...` - 经纬度转地点
+
+### 知识问答（qa.py）
+- `POST /api/qa` - 提交问题，获取答案
+- `GET /api/qa/suggestions/{species}` - 获取建议问题列表
+
+### 记录管理（records.py）
+- `POST /api/record/location` - 新增分布记录
+- `GET /api/records` - 获取所有记录
+
+### 系统管理（admin.py、system.py）
+- `POST /api/admin/cache/invalidate` - 清除所有缓存（需 X-Admin-Key）
+- `GET /api/health` - 系统健康检查
 
 ## 测试
 

@@ -25,8 +25,21 @@ start.bat
 ```bash
 cd backend
 pip install -r requirements.txt
+# 后端自动加载 api/router.py 中定义的所有路由
+# 路由按业务领域分解在 api/routes/ 目录
 uvicorn main:app --reload --port 8000
 ```
+
+后端路由组织已拆分为：
+- `api/routes/species.py` → `/api/species`、`/api/locations` 等
+- `api/routes/analytics.py` → `/api/heatmap`、`/api/province-data` 等
+- `api/routes/geo.py` → `/api/geocode`、`/api/reverse-geocode` 等
+- `api/routes/qa.py` → `/api/qa`、`/api/qa/suggestions` 等
+- `api/routes/records.py` → `/api/record/location`、`/api/records` 等
+- `api/routes/admin.py` → `/api/admin/cache/invalidate` 等
+- `api/routes/system.py` → `/api/health` 等
+
+详见 [后端架构说明](./README.md#后端架构分层设计)
 
 **终端 2 - 启动前端：**
 ```bash
