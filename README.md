@@ -36,12 +36,16 @@ npm run dev
 ```
 
 访问地址：
-- 前端：http://localhost:5173
-- 后端 API：http://localhost:8000
-- OpenAPI 文档：http://localhost:8000/docs
 
 ## 项目架构
 
+## 📚 文档
+
+- **[SETUP_GUIDE.md](./SETUP_GUIDE.md)** - 完整配置与启动指南（环境准备、ngrok 公网访问、工作原理）
+- **[TROUBLESHOOTING.md](./TROUBLESHOOTING.md)** - 常见问题与解决方案
+- **[CONTRIBUTING.md](./CONTRIBUTING.md)** - 开发指南与代码规范
+
+## 项目架构
 ### 前端架构（组件化设计）
 
 从 2026-04-06 起，前端采用组件化架构提升可维护性：

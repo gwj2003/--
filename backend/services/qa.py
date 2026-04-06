@@ -8,6 +8,24 @@ from qa_cache import qa_cache
 from repositories.species_repository import list_species_names
 
 
+def _is_llm_auth_or_connection_error(exc: Exception) -> bool:
+    name = type(exc).__name__.lower()
+    msg = str(exc).lower()
+    keywords = [
+        "authenticationerror",
+        "apiconnectionerror",
+        "api connection",
+        "unauthorized",
+        "401",
+        "403",
+        "timed out",
+        "timeout",
+        "connection",
+        "dns",
+    ]
+    return any(k in name or k in msg for k in keywords)
+
+
 def ask_question(question: str, db: Session) -> dict:
     value = (question or "").strip()
     if not value:
@@ -30,6 +48,13 @@ def ask_question(question: str, db: Session) -> dict:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:
         print(f"QA Error: {exc}")
+        if _is_llm_auth_or_connection_error(exc):
+            # Degrade gracefully instead of surfacing raw provider errors to users.
+            return {
+                "answer": "当前问答服务连接异常（模型接口鉴权或网络不稳定）。请稍后重试；你也可以先使用分布分析和数据上报功能。",
+                "cypher": "",
+                "from_template": False,
+            }
         raise HTTPException(status_code=503, detail=f"暂时无法回答: {type(exc).__name__}") from exc
 
 

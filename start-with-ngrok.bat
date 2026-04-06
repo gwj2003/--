@@ -19,7 +19,7 @@ if errorlevel 1 (
     echo 请按以下步骤安装：
     echo   1. 访问 https://ngrok.com/download 下载 ngrok
     echo   2. 将 ngrok.exe 添加到你的 PATH
-    echo   3. 或在终端中手动运行：ngrok http 8000
+  echo   3. 或在终端中手动运行：ngrok http 5173
     echo.
     pause
     exit /b 1
@@ -34,7 +34,7 @@ echo ====================================================
 echo.
 echo 将使用 4 个终端窗口启动以下服务：
 echo   1. 终端 1：后端服务（FastAPI，端口 8000）
-echo   2. 终端 2：ngrok 隧道（将端口 8000 暴露到公网）
+echo   2. 终端 2：ngrok 隧道（将端口 5173 暴露到公网）
 echo   3. 终端 3：前端服务（Vite，端口 5173）
 echo   4. 终端 4：信息窗口
 echo.

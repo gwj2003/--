@@ -7,6 +7,7 @@ from typing import Any, Optional
 
 import geopandas as gpd
 import requests
+from shapely.errors import GEOSException
 from shapely.geometry import Point
 from shapely.ops import unary_union
 
@@ -19,6 +20,35 @@ _version: int = 0
 _gdf_cache: Optional[gpd.GeoDataFrame] = None
 _land_union_cache: Any = None
 _LAND_MISS = object()
+
+
+def _safe_make_valid(geom):
+    """Best-effort geometry repair to avoid GEOS topology errors."""
+    if geom is None:
+        return None
+    try:
+        if getattr(geom, "is_valid", True):
+            return geom
+    except Exception:
+        return geom
+
+    # Prefer make_valid when available (Shapely 2), fallback to buffer(0).
+    try:
+        from shapely.validation import make_valid  # type: ignore
+
+        fixed = make_valid(geom)
+        if fixed is not None and not getattr(fixed, "is_empty", False):
+            return fixed
+    except Exception:
+        pass
+
+    try:
+        fixed = geom.buffer(0)
+        if fixed is not None and not getattr(fixed, "is_empty", False):
+            return fixed
+    except Exception:
+        pass
+    return geom
 
 
 def _invalidate_derived():
@@ -100,6 +130,12 @@ def get_china_gdf() -> Optional[gpd.GeoDataFrame]:
         if _gdf_cache is None:
             _gdf_cache = gpd.GeoDataFrame.from_features(gj["features"])
             _gdf_cache.set_crs(epsg=4326, inplace=True)
+            # Repair invalid geometries up front to reduce topology failures.
+            if "geometry" in _gdf_cache:
+                _gdf_cache = _gdf_cache[_gdf_cache.geometry.notnull()].copy()
+                _gdf_cache["geometry"] = _gdf_cache["geometry"].map(_safe_make_valid)
+                _gdf_cache = _gdf_cache[_gdf_cache.geometry.notnull()].copy()
+                _gdf_cache = _gdf_cache[~_gdf_cache.geometry.is_empty].copy()
         return _gdf_cache
 
 
@@ -119,6 +155,7 @@ def get_china_land_union():
         u = gdf.geometry.union_all()
     except AttributeError:
         u = unary_union(gdf.geometry.values)
+    u = _safe_make_valid(u)
     with _lock:
         _land_union_cache = u
     return u
@@ -128,4 +165,13 @@ def point_in_china(lon: float, lat: float) -> Optional[bool]:
     poly = get_china_land_union()
     if poly is None:
         return None
-    return bool(poly.covers(Point(lon, lat)))
+    point = Point(lon, lat)
+    try:
+        return bool(poly.covers(point))
+    except GEOSException:
+        # Retry once with repaired union geometry when GEOS throws topology errors.
+        repaired = _safe_make_valid(poly)
+        try:
+            return bool(repaired.covers(point))
+        except Exception:
+            return None

@@ -23,7 +23,10 @@ def create_location_record(
 ) -> dict[str, str]:
     inside = point_in_china(longitude, latitude)
     if inside is None:
-        raise HTTPException(status_code=503, detail="国界参考数据尚未就绪，请检查 GeoJSON 数据源后重试。")
+        raise HTTPException(
+            status_code=503,
+            detail="地理边界判定暂不可用（可能为 GeoJSON 无效或数据未就绪），请稍后重试。",
+        )
     if not inside:
         raise HTTPException(status_code=400, detail="坐标必须位于中国境内。")
 
