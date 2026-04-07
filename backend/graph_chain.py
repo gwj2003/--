@@ -10,6 +10,17 @@ from langchain_core.prompts import PromptTemplate
 from config import get_settings
 
 
+def _normalize_cypher_query(query: Any) -> str:
+    """Normalize LLM-generated Cypher text for safer execution."""
+    if hasattr(query, "text"):
+        query = getattr(query, "text")
+    q = str(query or "").strip()
+    q = re.sub(r"^```(?:cypher)?\s*", "", q, flags=re.IGNORECASE)
+    q = re.sub(r"\s*```$", "", q)
+    q = re.sub(r"^cypher\s+", "", q, flags=re.IGNORECASE)
+    return q.strip()
+
+
 def _strip_cypher_string_literals(cypher: str) -> str:
     s = re.sub(r"'(?:[^'\\]|\\.)*'", " ", cypher)
     s = re.sub(r'"(?:[^"\\]|\\.)*"', " ", s)
@@ -68,8 +79,17 @@ def assert_read_only_cypher(cypher: str) -> None:
 
 class ReadOnlyNeo4jGraph(Neo4jGraph):
     def query(self, query: str, params: Optional[dict] = None):
-        assert_read_only_cypher(query)
-        return super().query(query, params or {})
+        normalized_query = _normalize_cypher_query(query)
+        assert_read_only_cypher(normalized_query)
+        try:
+            return super().query(normalized_query, params or {})
+        except Exception as exc:
+            # Compatibility fallback for driver/library mismatch around Query objects.
+            if "Query object is only supported for session.run" in str(exc):
+                with self._driver.session(database=self._database) as session:  # type: ignore[attr-defined]
+                    result = session.run(normalized_query, params or {})
+                    return [record.data() for record in result]
+            raise
 
 
 _chain: Any = None

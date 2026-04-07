@@ -19,6 +19,7 @@ def _wildcard_origin_to_regex(origin: str) -> str:
 
 def create_app() -> FastAPI:
     settings = get_settings()
+    settings.data_dir.mkdir(parents=True, exist_ok=True)
     app = FastAPI(title="Aquatic Species Analysis API")
 
     register_exception_handlers(app)

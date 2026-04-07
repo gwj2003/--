@@ -7,7 +7,7 @@ cd /d "%~dp0"
 set "ROOT_DIR=%~dp0"
 set "BACKEND_RUNNER=%ROOT_DIR%scripts\run_backend.bat"
 set "FRONTEND_RUNNER=%ROOT_DIR%scripts\run_frontend.bat"
-set "NEO4J_CHECKER=%ROOT_DIR%scripts\ensure_neo4j.bat"
+set "NEO4J_STARTER=%ROOT_DIR%scripts\start-neo4j.bat"
 set "FRONTEND_WAIT_MAX=120"
 set "NEO4J_WAIT_MAX=45"
 
@@ -123,13 +123,13 @@ pause
 exit /b 0
 
 :ensure_neo4j_running
-if not exist "%NEO4J_CHECKER%" (
-    echo [WARN] Neo4j checker not found: %NEO4J_CHECKER%
+if not exist "%NEO4J_STARTER%" (
+    echo [WARN] Neo4j starter not found: %NEO4J_STARTER%
     echo [WARN] Continuing startup. QA graph features may be degraded.
     exit /b 0
 )
 
-call "%NEO4J_CHECKER%" "%ROOT_DIR%" "%NEO4J_WAIT_MAX%"
+call "%NEO4J_STARTER%" auto "%NEO4J_WAIT_MAX%"
 exit /b 0
 
 :fail

@@ -1,97 +1,155 @@
 @echo off
 setlocal EnableExtensions
 
-set "NEO4J_BIN_DIR="
-set "NEO4J_BAT_IN_PATH="
-set "CFG_NEO4J_BIN=%NEO4J_BIN%"
+set "MODE=%~1"
+set "NEO4J_WAIT_MAX=%~2"
+if "%NEO4J_WAIT_MAX%"=="" set "NEO4J_WAIT_MAX=45"
+set "QUIET_MISSING=0"
+if /i "%MODE%"=="auto" set "QUIET_MISSING=1"
+set "NEO4J_BAT="
+set "NEEDS_ELEVATION=0"
 
-REM 1) Explicit override via NEO4J_BIN (bin dir or full neo4j.bat path)
-if defined CFG_NEO4J_BIN (
-  if exist "%CFG_NEO4J_BIN%\neo4j.bat" (
-    set "NEO4J_BIN_DIR=%CFG_NEO4J_BIN%"
-  ) else if exist "%CFG_NEO4J_BIN%" (
-    for %%F in ("%CFG_NEO4J_BIN%") do (
-      if /i "%%~nxF"=="neo4j.bat" set "NEO4J_BIN_DIR=%%~dpF"
-    )
+call :resolve_neo4j_bat
+if errorlevel 1 (
+  if /i "%MODE%"=="auto" (
+    echo [WARN] Neo4j launcher not found.
+    echo [WARN] Continuing startup. QA graph features may be degraded.
+    endlocal
+    exit /b 0
   )
-)
-
-REM 2) NEO4J_HOME/bin
-if not defined NEO4J_BIN_DIR if defined NEO4J_HOME (
-  if exist "%NEO4J_HOME%\bin\neo4j.bat" set "NEO4J_BIN_DIR=%NEO4J_HOME%\bin"
-)
-
-REM 3) Discover from PATH
-if not defined NEO4J_BIN_DIR (
-  for /f "delims=" %%I in ('where neo4j.bat 2^>nul') do (
-    if not defined NEO4J_BAT_IN_PATH set "NEO4J_BAT_IN_PATH=%%~fI"
-  )
-  if defined NEO4J_BAT_IN_PATH (
-    for %%D in ("%NEO4J_BAT_IN_PATH%") do set "NEO4J_BIN_DIR=%%~dpD"
-  )
-)
-
-REM 4) Common install locations
-if not defined NEO4J_BIN_DIR call :pick_common_install
-
-if not defined NEO4J_BIN_DIR (
-  echo [ERROR] Cannot find Neo4j launcher (neo4j.bat).
-  echo [INFO] Suggested fixes:
-  echo [INFO]   1) Add Neo4j bin to PATH, or
-  echo [INFO]   2) Set NEO4J_HOME, or
-  echo [INFO]   3) Set NEO4J_BIN to Neo4j bin path or neo4j.bat full path.
-  pause
   exit /b 1
 )
 
-if not exist "%NEO4J_BIN_DIR%\neo4j.bat" (
-  echo [ERROR] Resolved Neo4j path is invalid: %NEO4J_BIN_DIR%
-  echo [INFO] Ensure neo4j.bat exists in the resolved directory.
-  pause
-  exit /b 1
+call :detect_elevation_need
+
+call :is_port_listening 7687
+if not errorlevel 1 (
+  echo [OK] Neo4j is already running on port 7687.
+  endlocal
+  exit /b 0
 )
 
-REM Self-elevate to avoid Program Files permission issues.
-net session >nul 2>&1
-if %errorlevel% neq 0 (
-  echo Requesting administrator permission...
-  powershell -NoProfile -ExecutionPolicy Bypass -Command "Start-Process -FilePath '%~f0' -Verb RunAs"
-  exit /b
+if /i "%MODE%"=="auto" goto auto_mode
+
+if "%NEEDS_ELEVATION%"=="1" (
+  call :request_script_elevation
+  endlocal
+  exit /b 0
 )
 
 echo Starting Neo4j in console mode...
-echo Using Neo4j bin: %NEO4J_BIN_DIR%
-cd /d "%NEO4J_BIN_DIR%"
-call neo4j.bat console
+echo Using Neo4j launcher: %NEO4J_BAT%
+call "%NEO4J_BAT%" console
+set "NEO4J_EXIT=%errorlevel%"
+if not "%NEO4J_EXIT%"=="0" pause
 
+endlocal
+exit /b %NEO4J_EXIT%
+
+goto :eof
+
+:auto_mode
+echo [WARN] Neo4j is not listening on port 7687.
+echo [*] Attempting to start Neo4j in a new window...
+if "%NEEDS_ELEVATION%"=="1" (
+  powershell -NoProfile -ExecutionPolicy Bypass -Command "Start-Process -FilePath '%NEO4J_BAT%' -ArgumentList 'console' -Verb RunAs"
+) else (
+  start "Neo4j - BlueGuard" "%NEO4J_BAT%" console
+)
+
+echo [*] Waiting for Neo4j port 7687...
+set /a NEO4J_WAIT_COUNT=0
+:wait_neo4j
+call :is_port_listening 7687
+if not errorlevel 1 (
+  echo [OK] Neo4j is now listening on port 7687.
+  endlocal
+  exit /b 0
+)
+
+set /a NEO4J_WAIT_COUNT+=1
+if %NEO4J_WAIT_COUNT% GEQ %NEO4J_WAIT_MAX% goto neo4j_timeout
+timeout /t 1 /nobreak >nul
+goto wait_neo4j
+
+:neo4j_timeout
+echo [WARN] Neo4j did not become ready within %NEO4J_WAIT_MAX% seconds.
+echo [WARN] Continuing startup. QA graph features may be degraded.
 endlocal
 exit /b 0
 
-:pick_common_install
-if defined ProgramFiles (
-  if exist "%ProgramFiles%\Neo4j Community\bin\neo4j.bat" (
-    set "NEO4J_BIN_DIR=%ProgramFiles%\Neo4j Community\bin"
-    exit /b 0
-  )
+:resolve_neo4j_bat
+if defined NEO4J_BIN goto check_neo4j_bin
+goto check_neo4j_home
 
-  for /f "delims=" %%D in ('dir /b /ad /o-n "%ProgramFiles%\neo4j-community-*" 2^>nul') do (
-    if not defined NEO4J_BIN_DIR if exist "%ProgramFiles%\%%D\bin\neo4j.bat" (
-      set "NEO4J_BIN_DIR=%ProgramFiles%\%%D\bin"
-    )
+:check_neo4j_bin
+if exist "%NEO4J_BIN%\neo4j.bat" (
+  set "NEO4J_BAT=%NEO4J_BIN%\neo4j.bat"
+  exit /b 0
+)
+if exist "%NEO4J_BIN%" (
+  for %%F in ("%NEO4J_BIN%") do (
+    if /i "%%~nxF"=="neo4j.bat" set "NEO4J_BAT=%%~fF"
+  )
+)
+if defined NEO4J_BAT exit /b 0
+
+goto check_neo4j_home
+
+:check_neo4j_home
+if defined NEO4J_HOME (
+  if exist "%NEO4J_HOME%\bin\neo4j.bat" (
+    set "NEO4J_BAT=%NEO4J_HOME%\bin\neo4j.bat"
+    exit /b 0
   )
 )
 
-if not defined NEO4J_BIN_DIR if defined ProgramFiles(x86) (
-  if exist "%ProgramFiles(x86)%\Neo4j Community\bin\neo4j.bat" (
-    set "NEO4J_BIN_DIR=%ProgramFiles(x86)%\Neo4j Community\bin"
-    exit /b 0
-  )
+goto check_path
 
-  for /f "delims=" %%D in ('dir /b /ad /o-n "%ProgramFiles(x86)%\neo4j-community-*" 2^>nul') do (
-    if not defined NEO4J_BIN_DIR if exist "%ProgramFiles(x86)%\%%D\bin\neo4j.bat" (
-      set "NEO4J_BIN_DIR=%ProgramFiles(x86)%\%%D\bin"
-    )
+:check_path
+for /f "delims=" %%I in ('where neo4j.bat 2^>nul') do (
+  if not defined NEO4J_BAT (
+    if /i not "%%~fI"=="%SystemRoot%\System32\neo4j.bat" set "NEO4J_BAT=%%~fI"
   )
 )
+if defined NEO4J_BAT exit /b 0
 
+goto check_common
+
+:check_common
+if exist "%ProgramFiles%\Neo4j Community\bin\neo4j.bat" (
+  set "NEO4J_BAT=%ProgramFiles%\Neo4j Community\bin\neo4j.bat"
+  exit /b 0
+)
+
+for /f "delims=" %%D in ('dir /b /ad /o-n "%ProgramFiles%\neo4j-community-*" 2^>nul') do (
+  if not defined NEO4J_BAT if exist "%ProgramFiles%\%%D\bin\neo4j.bat" (
+    set "NEO4J_BAT=%ProgramFiles%\%%D\bin\neo4j.bat"
+  )
+)
+if defined NEO4J_BAT exit /b 0
+
+echo [ERROR] Cannot find Neo4j launcher (neo4j.bat).
+echo [INFO] Please set NEO4J_HOME or add Neo4j bin directory to PATH.
+if "%QUIET_MISSING%"=="0" pause
+exit /b 1
+
+:detect_elevation_need
+set "NEEDS_ELEVATION=0"
+echo %NEO4J_BAT% | find /i "%ProgramFiles%\" >nul
+if errorlevel 1 exit /b 0
+
+net session >nul 2>&1
+if errorlevel 1 set "NEEDS_ELEVATION=1"
+exit /b 0
+
+:request_script_elevation
+echo [INFO] Neo4j is under Program Files and needs Administrator permission.
+echo [INFO] Requesting Administrator permission...
+powershell -NoProfile -ExecutionPolicy Bypass -Command "Start-Process -FilePath '%~f0' -Verb RunAs"
+exit /b 0
+
+:is_port_listening
+netstat -ano | findstr /r /c:":%~1 .*LISTENING" >nul 2>&1
+if errorlevel 1 exit /b 1
 exit /b 0
