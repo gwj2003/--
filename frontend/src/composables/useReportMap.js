@@ -29,7 +29,7 @@ export const useReportMap = (activeTab) => {
   const recordFilterDate = ref('')
   const recordSortField = ref('date')
   const recordSortOrder = ref('desc')
-  const reportBasemap = ref('osm')
+  const reportBasemap = ref('gaode_satellite')
 
   const canSave = computed(() =>
     reportForm.value.species &&

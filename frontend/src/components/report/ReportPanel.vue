@@ -107,8 +107,6 @@
       <div class="map-toolbar">
         <label>地图底图</label>
         <select v-model="reportBasemapModel" @change="changeReportBasemap" class="form-input map-select">
-          <option value="osm">OpenStreetMap</option>
-          <option value="esri">ESRI 卫星影像</option>
           <option value="gaode_satellite">高德卫星</option>
           <option value="gaode_satellite_annotated">高德卫星（带标注）</option>
         </select>

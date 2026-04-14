@@ -6,8 +6,6 @@
 
         <label class="field-label">选择底图</label>
         <select v-model="basemapModel" @change="changeBasemap" class="control-input">
-          <option value="osm">OpenStreetMap</option>
-          <option value="esri">ESRI 卫星</option>
           <option value="gaode_satellite">高德卫星影像</option>
           <option value="gaode_satellite_annotated">高德卫星影像（带标注）</option>
         </select>

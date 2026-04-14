@@ -1,7 +1,7 @@
 <template>
   <div class="home-container">
     <header class="app-header">
-      <h1>水生入侵生物综合平台</h1>
+      <h1>水生入侵动物综合平台</h1>
       <p>分布识别、知识问答与数据协作</p>
     </header>
 

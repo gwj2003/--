@@ -4,18 +4,6 @@ export const getBasemapLayers = (basemap) => {
   const layers = []
 
   switch (basemap) {
-    case 'osm':
-      layers.push(L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '© OpenStreetMap contributors',
-        maxZoom: 18
-      }))
-      break
-    case 'esri':
-      layers.push(L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-        attribution: 'Tiles © Esri',
-        maxZoom: 18
-      }))
-      break
     case 'gaode_satellite':
       layers.push(L.tileLayer('https://webst02.is.autonavi.com/appmaptile?style=6&x={x}&y={y}&z={z}', {
         attribution: 'Tiles © AMap',

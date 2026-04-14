@@ -8,7 +8,7 @@ import { applyBasemap } from '@/utils/maps'
 
 export const useSpeciesMap = (activeTab) => {
   const selectedSpecies = ref('')
-  const selectedBasemap = ref('osm')
+  const selectedBasemap = ref('gaode_satellite')
   const selectedLayer = ref('points')
   const currentLocations = ref([])
 
