@@ -9,6 +9,10 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "dompurify": "^3.3.3",
+    "leaflet": "^1.9.4",
+    "leaflet.heat": "^0.2.0",
+    "marked": "^17.0.6",
     "vue": "^3.5.30"
   },
   "devDependencies": {

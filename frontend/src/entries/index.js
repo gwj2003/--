@@ -1,4 +1,4 @@
 import rawHtml from '@/legacy/templates/index.html?raw'
-import { mountLegacyPage } from './mountLegacyPage'
+import { mountHomePage } from './mountHomePage'
 
-mountLegacyPage(rawHtml)
+mountHomePage(rawHtml)

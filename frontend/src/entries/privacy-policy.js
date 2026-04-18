@@ -1,4 +1,4 @@
 import rawHtml from '@/legacy/templates/privacy-policy.html?raw'
-import { mountLegacyLegalPage } from './mountLegacyLegalPage'
+import { mountLegalPage } from './mountLegalPage'
 
-mountLegacyLegalPage(rawHtml, 'privacy')
+mountLegalPage(rawHtml, 'privacy')

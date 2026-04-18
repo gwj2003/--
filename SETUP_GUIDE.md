@@ -1,255 +1,125 @@
-# BlueGuard 完整配置与启动指南
+# BlueGuard 安装与启动指南
 
-## 📋 目录
+这份文档面向维护者和首次接手的人，目标是把环境、启动链路、验证方式和常见故障一次说清。
+
+## 目录
 
 - [环境准备](#环境准备)
-- [快速启动 (本地)](#快速启动-本地)
+- [本地启动](#本地启动)
 - [ngrok 公网访问](#ngrok-公网访问)
-- [访问方式](#访问方式)
-- [背景原理](#背景原理)
-
----
+- [验证与检查](#验证与检查)
+- [常见故障](#常见故障)
 
 ## 环境准备
 
-### 前置要求
+### 必需项
 
-1. **Python 3.12**（与后端启动脚本一致）
-   - 下载：https://www.python.org/downloads/
+1. Python 3.12
+   - 用于后端服务和数据脚本。
    - 验证：`python --version`
 
-2. **Node.js & npm**
-   - 下载：https://nodejs.org/
+2. Node.js + npm
+   - 用于前端依赖安装和 Vite 构建。
    - 验证：`npm --version`
 
-3. **Neo4j 数据库**（可选，用于知识图谱）
-   - 下载：https://neo4j.com/download/
-   - 或运行：`scripts\start-neo4j.bat`（根目录 `start-neo4j.bat` 仍可用）
-   - 可选：若安装在自定义路径，设置 `NEO4J_HOME`（安装目录）或 `NEO4J_BIN`（bin 目录/neo4j.bat 路径）
+### 可选项
 
-4. **ngrok**（可选，用于公网访问）
+1. Neo4j
+   - 用于知识图谱相关能力。
+   - 相关脚本：`scripts\start-neo4j.bat` 和 `scripts/start-neo4j.sh`
+
+2. ngrok
+   - 用于把本地前端临时暴露到公网。
    - 下载：https://ngrok.com/download
-   - 或使用 npm：`npm install -g ngrok`
-   - 账户：访问 https://dashboard.ngrok.com/signup 并获取 authtoken
 
-### 初始化 ngrok（仅第一次需要）
+### 环境定义
 
-如果需要公网访问功能，运行一次：
+- Python/Conda 环境定义：`environment.yml`
+- 后端依赖列表：`backend/requirements.txt`
+- 前端依赖列表：`frontend/package.json`
+
+## 本地启动
+
+### 推荐方式：一键启动
+
+Windows：
 
 ```bash
-ngrok authtoken <你的-token>
+scripts\start.bat
 ```
 
-获取 token：
-1. 登录 https://dashboard.ngrok.com
-2. 左侧菜单 → Tunnels → Your Authtoken
-3. 复制并运行上述命令
+这个入口会按顺序处理 Neo4j、后端和前端，并在前端就绪后打开浏览器。
 
----
+### 分步方式：手动启动
 
-## 快速启动 (本地)
-
-### 🎯 方式一：一键启动（最简单）
-
-**Windows:**
-```bash
-start.bat
-```
-
-说明：脚本会自动检查 Neo4j `7687` 端口；未启动时会尝试自动拉起 Neo4j。
-
-等待终端输出：
-```
-📱 前端地址：http://localhost:5173
-🔌 后端 API：http://localhost:8000
-📚 API 文档：http://localhost:8000/docs
-```
-
-### 🎯 方式二：手动启动
-
-#### 终端 1 - 启动后端
+1. 启动后端
 
 ```bash
 scripts\run_backend.bat
 ```
 
-预期输出：
-```
-INFO:     Uvicorn running on http://0.0.0.0:8000
-INFO:     Application startup complete
-```
-
-#### 终端 2 - 启动前端
+2. 启动前端
 
 ```bash
 scripts\run_frontend.bat
 ```
 
-预期输出：
+3. 访问地址
+
+- 前端：http://localhost:5173
+- 后端：http://localhost:8000
+- API 文档：http://localhost:8000/docs
+
+### 首次初始化数据库
+
+如果需要重建本地 SQLite 数据，运行：
+
+```bash
+cd backend
+python migrate_csv_to_db.py
 ```
-VITE v4.x.x  ready in xx ms
-
-➜  Local:   http://localhost:5173/
-➜  press h to show help
-```
-
-#### 访问应用
-
-在浏览器中打开：
-- **前端**：http://localhost:5173
-- **后端 API**：http://localhost:8000
-- **API 文档**：http://localhost:8000/docs（可测试 API）
-
----
 
 ## ngrok 公网访问
 
-### 🌍 启动步骤
+### 推荐方式：一键启动 ngrok
 
-如果要让其他电脑通过互联网访问你的应用，需要使用 ngrok 隧道。
-
-#### 第一步：启动 Neo4j（可选，推荐提前启动）
+Windows：
 
 ```bash
-scripts\start-neo4j.bat
+scripts\start-with-ngrok.bat
 ```
 
-如果跳过这一步，`start-with-ngrok.bat` 也会在启动流程里自动检测并尝试拉起 Neo4j。
+这个脚本会自动：
 
-#### 第二步：一键启动所有服务（推荐）
+1. 检查并尝试拉起 Neo4j
+2. 启动后端
+3. 启动前端
+4. 启动 ngrok，将前端端口 `5173` 暴露到公网
 
-```bash
-start-with-ngrok.bat
+### 为什么暴露前端而不是后端
+
+维护上建议始终暴露前端 `5173`，原因是：
+
+1. 前端是唯一公开入口，所有 `/api` 请求都会经由 Vite 代理转发到后端。
+2. 这样可以避免直接暴露后端时的额外 CORS 复杂度。
+3. 后端保留在本机内网，结构更清楚。
+
+### 公网访问链路
+
+```text
+浏览器 → ngrok → 前端 5173 → Vite 代理 → 后端 8000 → SQLite / Neo4j
 ```
 
-此脚本会自动在 4 个终端中启动：
-- 后端 FastAPI（`localhost:8000`）
-- ngrok 隧道（暴露前端 `5173`）
-- 前端 Vite（`localhost:5173`）
-- 信息提示窗口
+## 验证与检查
 
-> ⚠️ **首次启动提示**：前端可能需要重启一次才能生效
-> - 在前端终端中按 `Ctrl+C` 停止
-> - 再次运行 `npm run dev`
+建议在维护时按下面顺序确认：
 
-#### 第三步：获取公网 URL
+1. 后端启动后能访问 `http://localhost:8000/docs`
+2. 前端启动后能访问 `http://localhost:5173`
+3. `npm run build` 在 `frontend/` 下执行成功
+4. 需要公网访问时，`scripts\start-with-ngrok.bat` 能正常输出 Forwarding 地址
 
-查看 **ngrok 终端窗口**，找到以下行：
-
-```
-Forwarding   https://xxxx-xxxx-xxxx.ngrok-free.dev → http://localhost:5173
-```
-
-这个 `https://xxxx-xxxx-xxxx.ngrok-free.dev` 就是你的公网地址。
-
-#### 第四步：分享给其他人
-
-其他人在浏览器中打开这个 URL，就能看到你的完整应用。
-
----
-
-### 🔧 手动启动（高级）
-
-如果一键脚本不起作用，可以手动启动：
-
-```bash
-# 终端 1：后端
-scripts\run_backend.bat
-
-# 终端 2：ngrok（暴露前端端口 5173）
-ngrok http 5173
-
-# 终端 3：前端
-scripts\run_frontend.bat
-```
-
-**重要：** 暴露 `5173`（前端）而不是 `8000`（后端），原因见下方"背景原理"
-
----
-
-## 访问方式
-
-### 本地访问（你的电脑）
-
-| 用途 | 地址 |
-|------|------|
-| 前端/网页 | http://localhost:5173 |
-| 后端 API | http://localhost:8000 |
-| API 测试页面 | http://localhost:8000/docs |
-| 后端监控 | http://localhost:8000/redoc |
-
-### 公网访问（其他电脑）
-
-| 用途 | 地址 |
-|------|------|
-| 前端/网页 | `https://xxxx-xxxx-xxxx.ngrok-free.dev` |
-| 自动转发 | 无需手动配置，前端已设置代理 |
-
-### ngrok 内部监控（调试）
-
-| 用途 | 地址 |
-|------|------|
-| ngrok 请求监控 | http://127.0.0.1:4040 |
-
-在这个页面可以看到所有通过 ngrok 的请求和响应详情，用于调试。
-
----
-
-## 背景原理
-
-### 没有 ngrok 时（本地）
-
-```
-你的浏览器
-   ↓
-localhost:5173（前端）
-   ↓
-localhost:8000（后端）
-   ↓
-Neo4j 数据库
-```
-
-### 使用 ngrok 时（公网）
-
-```
-其他电脑浏览器访问 https://xxxx-xxxx-xxxx.ngrok-free.dev
-                        ↓
-                ngrok 隧道（双向转发）
-                        ↓
-            你的电脑 localhost:5173（前端）
-                        ↓
-            前端 JavaScript 代码调用 /api
-                        ↓
-          Vite 代理转发到 localhost:8000
-                        ↓
-          你的电脑 localhost:8000（后端）
-                        ↓
-                Neo4j 数据库
-                        ↓
-            响应数据给浏览器
-```
-
-### 为什么暴露前端（5173）而不是后端（8000）？
-
-1. **前端作为唯一入口**：所有请求都经过前端
-2. **代理转发**：前端 Vite 的代理配置会自动转发 `/api` 请求到后端
-3. **跨域问题**：直接暴露后端会产生复杂的 CORS 问题
-4. **安全性**：后端隐藏在内网，只通过前端访问
-
-### 项目配置文件
-
-| 文件 | 作用 |
-|------|------|
-| `.env` | CORS 允许的源列表（包含 ngrok 通配符） |
-| `backend/main.py` | 后端 CORS 中间件配置 |
-| `frontend/vite.config.js` | 前端代理配置（`/api` → `:8000`） |
-| `start-with-ngrok.bat` | 一键启动脚本 |
-
----
-
-## 验证配置
-
-可手动快速检查环境：
+### 参考命令
 
 ```bash
 python --version
@@ -257,20 +127,45 @@ npm --version
 ngrok --version
 ```
 
-并确认以下文件存在且配置正确：
-- ✓ `.env`
-- ✓ `backend/main.py`（CORS）
-- ✓ `frontend/vite.config.js`（proxy 和 allowedHosts）
+## 常见故障
 
----
+### 后端启动失败
 
-## 需要帮助？
+- 常见原因：8000 端口被占用，或者 Python/环境未准备好。
+- 排查：
 
-遇到问题？查看 [TROUBLESHOOTING.md](./TROUBLESHOOTING.md)
+```bash
+netstat -ano | findstr :8000
+```
 
-常见问题包括：
-- ngrok URL 显示"被阻止"
-- API 调用返回 CORS 错误
-- 端口被占用
-- 其他电脑无法访问
-- 依赖缺失
+### 前端启动失败
+
+- 常见原因：5173 端口被占用，或者没有在 `frontend/` 目录下执行前端命令。
+- 排查：
+
+```bash
+netstat -ano | findstr :5173
+```
+
+### ngrok 不可用
+
+- 先确认 `ngrok version` 可执行。
+- 再确认已经配置过 `ngrok authtoken <token>`。
+
+### 页面资源或路径异常
+
+- 静态资源优先检查 `frontend/public/`。
+- Vue 共享逻辑优先检查 `frontend/src/shared/`。
+- 旧模板壳优先检查 `frontend/src/legacy/`。
+
+### 构建失败
+
+- 先在 `frontend/` 目录下执行 `npm run build`。
+- 如果是导入路径问题，通常是 `frontend/src/shared/`、`frontend/src/api/` 或 `frontend/src/utils/` 的兼容层发生了变化。
+
+## 维护建议
+
+- 新功能优先放进 `frontend/src/shared/` 或 `frontend/src/features/`，不要再新增 `spa/` 级别目录。
+- 旧模板页面只做兼容性维护，不再往里面堆业务逻辑。
+- 修改入口脚本或 HTML 入口后，务必重新跑构建。
+

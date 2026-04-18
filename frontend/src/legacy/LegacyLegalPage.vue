@@ -1,8 +1,8 @@
 <script setup>
 import { computed, nextTick, onMounted } from 'vue'
-import LegacyBreadcrumb from '@/components/legacy/LegacyBreadcrumb.vue'
-import LegacyFooter from '@/components/legacy/LegacyFooter.vue'
-import LegacyNavbar from '@/components/legacy/LegacyNavbar.vue'
+import LegacyBreadcrumb from '@/legacy/components/LegacyBreadcrumb.vue'
+import LegacyFooter from '@/legacy/components/LegacyFooter.vue'
+import LegacyNavbar from '@/legacy/components/LegacyNavbar.vue'
 
 const props = defineProps({
   rawHtml: {
@@ -15,6 +15,11 @@ const props = defineProps({
     validator: (value) => ['privacy', 'terms'].includes(value),
   },
 })
+
+const pageTitleMap = {
+  privacy: '隐私说明',
+  terms: '服务条款',
+}
 
 const fallbackScriptSources = [
   '/js/jquery.min.js',
@@ -99,11 +104,8 @@ async function loadLegacyScripts() {
 }
 
 onMounted(async () => {
-  const { title, bodyAttributes } = parsedPage.value
-
-  if (title) {
-    document.title = title
-  }
+  const { bodyAttributes } = parsedPage.value
+  document.title = `${pageTitleMap[props.page]} - 中国水生动物入侵智能化平台`
 
   document.body.removeAttribute('data-spy')
   document.body.removeAttribute('data-target')
@@ -132,13 +134,13 @@ onMounted(async () => {
     </div>
   </div>
 
-  <LegacyNavbar variant="legal" />
+  <LegacyNavbar />
   <LegacyBreadcrumb :page="page" />
 
   <div v-html="mainContentHtml"></div>
 
   <LegacyBreadcrumb :page="page" />
-  <LegacyFooter variant="legal" />
+  <LegacyFooter />
 </template>
 
 <style>

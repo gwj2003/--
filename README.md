@@ -1,179 +1,197 @@
 # 水生入侵生物综合平台
 
-一个前后端分离的水生入侵物种分析系统：
-- 后端：FastAPI + SQLite + 地理分析 + 图谱问答
-- 前端：Vue 3 + Leaflet 地图可视化
+一个面向维护和演示的前后端分离项目。后端使用 FastAPI + SQLite + 可选 Neo4j，前端使用 Vue 3 + Vite + Leaflet。当前仓库不是传统单页 SPA，而是多页面入口加共享模块的结构。
 
-## 目录
+## 维护者视角
 
-- `backend/` 后端服务与数据处理
-- `frontend/` 前端界面
-- `start.bat` Windows 一键启动
+这个仓库最重要的不是页面本身，而是三条链路：
 
-## 环境要求
+1. 启动链路：`scripts/` 下的批处理和 shell 脚本负责本地启动、Neo4j 拉起和 ngrok 暴露。
+2. 后端链路：`backend/` 负责 API、服务层、仓储层、模型和模式定义。
+3. 前端链路：`frontend/` 负责多页面入口、旧模板壳、共享模块和案例页功能组件。
 
-- Python 3.12（与 `scripts/run_backend.bat` 一致）
-- Node.js + npm（建议 LTS）
+## 根目录职责
 
-## 快速启动
+- `backend/` 后端服务、数据迁移、图谱与问答逻辑
+- `frontend/` 前端多页面应用与静态资源
+- `scripts/` 本地启动、Neo4j、ngrok 相关脚本
+- `environment.yml` Python/Conda 环境定义
+- `README.md` 维护者总览
+- `SETUP_GUIDE.md` 安装与启动操作手册
 
-### 方式一：一键启动（推荐）
+## 文件名 → 作用
 
-Windows:
-```bash
-start.bat
+### 根目录
+
+| 文件名 | 作用 |
+|---|---|
+| `.gitignore` | 忽略构建产物、依赖目录、本地环境和临时文件 |
+| `environment.yml` | 定义后端 Python/Conda 环境，便于重建运行环境 |
+| `README.md` | 项目总览，面向维护者说明架构和职责边界 |
+| `SETUP_GUIDE.md` | 安装、启动、验证和故障排查手册 |
+
+### 后端
+
+| 文件名 | 作用 |
+|---|---|
+| `backend/main.py` | FastAPI 入口，负责创建应用并挂载路由 |
+| `backend/config.py` | 管理数据库、Neo4j、API Key 等配置 |
+| `backend/database.py` | 负责数据库连接、会话和初始化相关逻辑 |
+| `backend/api/router.py` | 汇总并注册所有业务路由 |
+| `backend/api/errors.py` | 统一 API 异常与错误响应 |
+| `backend/api/routes/*.py` | 各业务接口：管理、统计、地理、问答、记录、物种、系统 |
+| `backend/services/*.py` | 业务逻辑层，承接路由与数据访问之间的处理 |
+| `backend/repositories/*.py` | 数据访问层，封装 SQL 或查询逻辑 |
+| `backend/models/*.py` | SQLAlchemy ORM 模型定义 |
+| `backend/schemas/*.py` | 请求/响应模式定义 |
+| `backend/migrate_csv_to_db.py` | 将 CSV 数据导入 SQLite |
+| `backend/import_to_neo4j.py` | 将数据导入 Neo4j 图数据库 |
+| `backend/graph_chain.py` | 图谱问答/推理链路相关逻辑 |
+| `backend/qa_cache.py` | 问答缓存，减少重复计算 |
+| `backend/geo_data.py` | 地理或行政区划数据处理 |
+| `backend/species_data.py` | 物种数据整理、读取或映射 |
+| `backend/runtime/README.md` | 说明运行时目录的用途 |
+
+### 前端
+
+| 文件名 | 作用 |
+|---|---|
+| `frontend/index.html` | 首页 HTML 入口 |
+| `frontend/privacy-policy.html` | 隐私说明页入口 |
+| `frontend/terms-conditions.html` | 服务条款页入口 |
+| `frontend/basin-monitoring.html` | 流域监测项目页入口 |
+| `frontend/knowledge-graph.html` | 知识图谱应用页入口 |
+| `frontend/mobile-monitoring.html` | 移动端监测页入口 |
+| `frontend/vite.config.js` | Vite 构建、入口页、别名和代理配置 |
+| `frontend/jsconfig.json` | 编辑器路径别名和 JS 感知配置 |
+| `frontend/package.json` | 前端依赖、脚本和项目元数据 |
+| `frontend/public/` | 旧版页面使用的静态资源 |
+| `frontend/src/entries/*.js` | 各 HTML 页面的挂载脚本 |
+| `frontend/src/legacy/*.vue` | 首页、法律页和案例页的旧模板壳 |
+| `frontend/src/legacy/templates/*.html` | 旧模板的原始 HTML 资源 |
+| `frontend/src/features/*.vue` | 三个案例页的功能包装组件 |
+| `frontend/src/shared/*` | 可复用的 API、面板、composables 和工具 |
+| `frontend/src/api/*.js` | 向旧导入路径提供兼容转发 |
+| `frontend/src/utils/*.js` | 向旧工具路径提供兼容转发 |
+
+### 脚本
+
+| 文件名 | 作用 |
+|---|---|
+| `scripts/run_backend.bat` | Windows 启动后端 |
+| `scripts/run_backend.sh` | Linux/macOS 启动后端 |
+| `scripts/run_frontend.bat` | Windows 启动前端 |
+| `scripts/run_frontend.sh` | Linux/macOS 启动前端 |
+| `scripts/start-neo4j.bat` | Windows 启动 Neo4j |
+| `scripts/start-neo4j.sh` | Linux/macOS 启动 Neo4j |
+| `scripts/start.bat` | Windows 一键启动总入口 |
+| `scripts/start.sh` | Linux/macOS 一键启动总入口 |
+| `scripts/start-with-ngrok.bat` | Windows 一键启动并暴露 ngrok |
+| `scripts/start-with-ngrok.sh` | Linux/macOS 一键启动并暴露 ngrok |
+
+## 当前结构总览
+
+```text
+BlueGuard/
+├── backend/
+│   ├── api/           # 路由与错误封装
+│   ├── services/      # 业务逻辑
+│   ├── repositories/  # 数据访问
+│   ├── models/        # ORM 模型
+│   ├── schemas/       # 请求/响应模式
+│   └── *.py           # 配置、入口、导入、迁移、图谱、缓存
+├── frontend/
+│   ├── *.html         # 多页面 HTML 入口
+│   ├── public/        # 旧站点静态资源
+│   └── src/
+│       ├── entries/   # HTML 对应的挂载脚本
+│       ├── legacy/    # 旧模板壳与模板解析层
+│       ├── features/  # 三个案例页功能包装
+│       └── shared/    # 可复用面板、composables、api、工具
+└── scripts/           # 启动脚本
 ```
 
-说明：`start.bat` 会自动检查 Neo4j `7687` 端口，未启动时会尝试自动拉起 Neo4j。
+## 前端分层
 
-### 方式二：手动启动
+- `frontend/src/entries/`：每个 HTML 页面对应一个入口脚本。
+- `frontend/src/legacy/`：保留首页、隐私页、条款页这类旧模板壳，以及模板加载逻辑。
+- `frontend/src/features/`：流域监测、知识图谱、移动端监测三个案例页的功能包装。
+- `frontend/src/shared/`：真正可复用的模块，包含请求封装、地图工具、问答/上报/物种面板和 composables。
+- `frontend/src/api/`、`frontend/src/utils/`：兼容旧导入路径的转发层，后续可逐步收敛。
 
-后端（终端 1，复用脚本）：
+## 后端分层
+
+- `backend/api/`：路由汇总、错误处理、按业务拆分的端点。
+- `backend/services/`：业务逻辑与跨仓储编排。
+- `backend/repositories/`：数据库访问封装。
+- `backend/models/`：SQLAlchemy 基类与 ORM 定义。
+- `backend/schemas/`：Pydantic 请求/响应模式。
+
+## 维护常用命令
+
 ```bash
+# Windows 一键启动
+scripts\start.bat
+
+# Windows 启动后端
 scripts\run_backend.bat
-```
 
-前端（终端 2，复用脚本）：
-```bash
+# Windows 启动前端
 scripts\run_frontend.bat
+
+# Windows ngrok 启动
+scripts\start-with-ngrok.bat
 ```
 
-访问地址：
-- 前端: http://localhost:5173
-- 后端: http://localhost:8000
-- API 文档: http://localhost:8000/docs
+启动后常用地址：
 
-## 📚 文档
+- 前端：http://localhost:5173
+- 后端：http://localhost:8000
+- API 文档：http://localhost:8000/docs
 
-- **[SETUP_GUIDE.md](./SETUP_GUIDE.md)** - 完整配置与启动指南（环境准备、ngrok 公网访问、工作原理）
-- **[TROUBLESHOOTING.md](./TROUBLESHOOTING.md)** - 常见问题与解决方案
-- **[CONTRIBUTING.md](./CONTRIBUTING.md)** - 开发指南与代码规范
+## 数据与初始化
 
-## 项目架构
-### 前端架构（组件化设计）
+- 主运行库：`backend/data/species.db`
+- 原始导入数据：`backend/data/gbif_results/*.csv`
+- 地理数据：`backend/data/geo/china_100000_full.json`
+- 运行时说明：`backend/runtime/README.md`
 
-从 2026-04-06 起，前端采用组件化架构提升可维护性：
-
-```
-frontend/src/
-├── components/                      # 功能组件
-│   ├── chat/ChatPanel.vue          # 知识问答面板
-│   ├── report/ReportPanel.vue      # 数据上报面板
-│   └── species/SpeciesMapPanel.vue # 物种分析面板
-├── composables/                    # 组合函数（业务逻辑）
-│   ├── useChatQa.js               # 问答交互逻辑
-│   ├── useReportMap.js            # 上报地图逻辑
-│   └── useSpeciesMap.js           # 分析地图逻辑
-├── api/                           # API 通信
-│   ├── client.js                  # 统一请求客户端
-│   └── geocoding.js               # 地理编码服务
-└── utils/                         # 工具函数
-    └── maps.js                    # 地图底图配置
-```
-
-**设计优势：**
-- ✅ 组件职责清晰，易于单元测试
-- ✅ 业务逻辑剥离到 composables，复用率高
-- ✅ API 调用统一管理，便于拦截器和错误处理
-
-### 后端架构（分层设计）
-
-后端采用经典分层架构，自上而下分别是：
-
-```
-backend/
-├── api/                          # 最上层：API 入口
-│   ├── router.py                # 路由汇聚器
-│   ├── errors.py                # 异常处理器
-│   └── routes/                  # 按业务领域分解
-│       ├── admin.py             # 管理端点
-│       ├── analytics.py         # 分析与可视化
-│       ├── geo.py               # 地理编码
-│       ├── qa.py                # 知识问答
-│       ├── records.py           # 记录管理
-│       ├── species.py           # 物种管理
-│       └── system.py            # 系统健康检查
-├── services/                    # 业务逻辑层
-│   ├── admin.py                # 管理服务
-│   ├── analytics.py            # 分析服务
-│   ├── geocoding.py            # 地理编码（包含速率限制）
-│   ├── qa.py                   # 问答服务
-│   ├── records.py              # 记录服务
-│   └── species.py              # 物种服务
-├── repositories/               # 数据访问层（DAL）
-│   ├── species_repository.py   # 物种数据访问
-│   ├── records_repository.py   # 记录数据访问
-│   └── stats_repository.py     # 统计数据访问
-├── models/                     # 数据模型层
-│   ├── base.py                # SQLAlchemy Base
-│   └── species.py             # ORM 模型定义
-└── schemas/                    # 请求/响应模式
-    ├── qa.py                  # 问答模式
-    └── records.py             # 记录模式
-```
-
-**分层说明：**
-1. **API 层**：接收请求、参数验证、统一错误处理
-2. **服务层**：核心业务逻辑、缓存、数据验证
-3. **数据访问层**：SQL 执行、事务管理、结果映射
-4. **模型层**：ORM 定义、关系映射
-
-**调用流向：** `Request` → `Route` → `Service` → `Repository` → `Database` → `Response`
-
-## 核心功能
-
-- 分布识别分析：地图点位、热力图、省级统计、MaxEnt 图层
-- 智能知识问答：图谱问答 + LLM 降级
-- 数据上报：前端表单新增记录，落库保存
-
-## 数据与数据库
-
-### 当前存储
-
-- 主数据库：`backend/data/species.db`
-- 原始分布数据：`backend/data/gbif_results/*.csv`（用于初始化/迁移）
-- 用户上报记录：写入 SQLite 的 `location_records` 表
-
-### 初始化数据库（从 CSV 导入）
+从 CSV 重建本地数据时：
 
 ```bash
 cd backend
 python migrate_csv_to_db.py
 ```
 
-## 常用 API
+## 依赖与规范
 
-### 物种管理（species.py）
-- `GET /api/species` - 获取所有物种列表
-- `GET /api/species/{species}` - 获取物种详细信息
-- `GET /api/locations/{species}` - 获取物种分布位置
+- Python 环境以 `environment.yml` 为准，仓库内的 `requirements.txt` 主要用于后端 Python 依赖列举。
+- 前端依赖以 `frontend/package.json` 为准。
+- 推荐使用 `pre-commit` 保持 Python 和前端基础格式一致。
 
-### 分析与可视化（analytics.py）
-- `GET /api/heatmap/{species}` - 热力图数据
-- `GET /api/province-data/{species}` - 省级填色图数据
-- `GET /api/maxent-image/{species}` - MaxEnt 预测图像
+```bash
+pip install pre-commit
+pre-commit install
+pre-commit run --all-files
+```
 
-### 地理编码（geo.py）
-- `GET /api/geocode?address=...` - 地点转经纬度
-- `GET /api/reverse-geocode?lat=...&lon=...` - 经纬度转地点
+## 维护提示
 
-### 知识问答（qa.py）
-- `POST /api/qa` - 提交问题，获取答案
-- `GET /api/qa/suggestions/{species}` - 获取建议问题列表
+- `frontend/public/` 下的旧版静态资源仍被老模板页面引用，删除前要先全局确认。
+- `frontend/src/shared/` 是当前复用层，优先在这里放可共享逻辑，不要再把新代码塞回 `spa/`。
+- `dist/` 和 `node_modules/` 属于构建/依赖产物，不应手工维护。
+- 如果后端或前端改动了入口文件，优先重新跑一次生产构建再合并。
 
-### 记录管理（records.py）
-- `POST /api/record/location` - 新增分布记录
-- `GET /api/records` - 获取所有记录
+## 验证标准
 
-### 系统管理（admin.py、system.py）
-- `POST /api/admin/cache/invalidate` - 清除所有缓存（需 X-Admin-Key）
-- `GET /api/health` - 系统健康检查
+维护侧最基本的验证是：
 
-## 测试
-
-启动与验证步骤见 `SETUP_GUIDE.md`，常见问题见 `TROUBLESHOOTING.md`。
+1. 后端能启动并访问 `/docs`。
+2. 前端能在 `5173` 正常打开。
+3. `npm run build` 成功。
+4. 需要公网时，`scripts\start-with-ngrok.bat` 能正常拉起前端隧道。
 
 ## 说明
 
-- Neo4j 和 API Key 可选，不可用时系统会降级到普通 LLM 回答。
-- 本项目是研究用途示例，不建议直接暴露到公网。
+- Neo4j 和部分 API Key 是可选能力，不可用时系统会降级。
+- 这是研究和演示用途项目，不建议直接对外暴露生产入口。
